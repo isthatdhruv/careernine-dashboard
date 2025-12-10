@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { db } from '../../firebase';
 import { collection, getDocs, query, where, deleteDoc, doc, orderBy } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
@@ -35,7 +35,10 @@ import {
   CheckCircleIcon,
   ClockIcon,
   XCircleIcon,
-  ArrowDownTrayIcon
+  ArrowDownTrayIcon,
+  FunnelIcon,
+  ArrowPathIcon,
+  ArrowUpTrayIcon
 } from '@heroicons/react/24/outline';
 
 // Register ChartJS components
@@ -147,6 +150,209 @@ const currentTenant = getSubdomain();
 const MAIN_ADMIN_SUBDOMAINS = ['localhost', 'analyze', ''];
 const isMainDomain = MAIN_ADMIN_SUBDOMAINS.includes(currentTenant);
 
+// --- Master Sheet Constants & Helpers ---
+const CAREER_LABELS = [
+  "Architecture", "Art, Design", "Entertainment and Mass Media ", "Management and Administration",
+  "Banking and Finance", "Law Studies ", "Government and Public Administration", "Marketing ",
+  "Entrepreneurship", "Sales", "Science and Mathematics", "Computer Science, IT and Allied Fields ",
+  "Life Sciences /Medicine and Healthcare", "Environmental Service", "Social Sciences and Humanities",
+  "Defence/ Protective Service", "Sports", "Engineering and Technology", "Agriculture, Food Industry and Forestry ",
+  "Education and Training", "Paramedical", "Hospitality and Tourism  ", "Community and Social Service",
+  "Personal Care and Services "
+];
+
+const VALUE_LABELS = [
+  "Lucrative Salary", "Job Security ", "Variety and Diversity", "Building Relations", "High achievement",
+  "Autonomy", "Hands on activities", "Prestige/ Recognition", "Creativity", "Mental Activity",
+  "Physical Activity", "Leadership", "Routine Activity", "Supervised Work ", "Working Conditions"
+];
+
+const SOI_LABELS = [
+  "Agriculture", "Art", "Cultural Studies", "English", "Home and Consumer Science", "Finance",
+  "Health", "Languages", "Management", "Mathematics", "Music", "Science", "Vocational studies",
+  "Social Sciences", "Technology"
+];
+
+const MI_LABELS = [
+  "Bodily-Kinesthetic ", "Interpersonal ", "Intrapersonal ", "Linguistic ",
+  "Logical-Mathematical ", "Musical ", "Visual-Spatial", "Naturalistic "
+];
+
+const APT_LABELS = [
+  "Speed and accuracy ", "Computational", "Creativity /Artistic ", "Language/ Communication ",
+  "Technical ", "Decision making & problem solving ", "Finger dexterity ", "Form perception ",
+  "Logical reasoning ", "Motor movement "
+];
+
+const E_WEIGHTS: Record<string, number> = { "A": 4, "B": 3, "C": 3, "D": 1 };
+const F_WEIGHTS: Record<string, number> = { "A": 4, "B": 3, "C": 2, "D": 1 };
+
+const E_GROUPS: Record<string, number[]> = {
+  "Speed and accuracy ": [1, 11, 21], "Computational": [2, 12, 22],
+  "Creativity /Artistic ": [3, 13, 23], "Language/ Communication ": [4, 14, 24],
+  "Technical ": [5, 15, 25], "Decision making & problem solving ": [6, 16, 26],
+  "Finger dexterity ": [7, 17, 27], "Form perception ": [8, 18, 28],
+  "Logical reasoning ": [9, 19, 29], "Motor movement ": [10, 20, 30]
+};
+
+const RIASEC_LETTERS = ["R", "I", "A", "S", "E", "C"];
+
+function norm(val: any): string {
+  if (val === null || val === undefined) return "";
+  return String(val).trim().toUpperCase();
+}
+
+function isSelected(val: any): boolean {
+  const v = norm(val);
+  return (v === "1" || v === "YES" || v === "Y");
+}
+
+function generateMasterSheetData(rawValues: any[][]): any[] {
+  if (rawValues.length < 2) {
+    throw new Error('Raw Data has no data.');
+  }
+
+  // Header row
+  const header = rawValues[0];
+  const dataRows = rawValues.slice(1);
+
+  // Map header name -> index
+  const colIndex: Record<string, number> = {};
+  header.forEach((name: any, idx: number) => {
+    colIndex[String(name).trim()] = idx;
+  });
+
+  // Helper to get index
+  function idx(name: string): number {
+    const i = colIndex[name];
+    if (i === undefined) {
+      // For optional columns or if we want to be lenient, we could return -1
+      // But Apps Script throws error. Let's throw error to be safe.
+      throw new Error("Column not found in Raw Data: " + name);
+    }
+    return i;
+  }
+
+  const output = [];
+
+  for (const row of dataRows) {
+    // Skip if no Roll Number
+    // Check if Roll Number column exists first
+    let rollIdx: number;
+    try {
+      rollIdx = idx("Roll Number");
+    } catch (e) {
+      console.warn("Roll Number column missing, skipping row check");
+      continue;
+    }
+
+    const roll = row[rollIdx];
+    if (roll === "" || roll === null || roll === undefined) continue;
+
+    const school = row[idx("School")];
+    const section = row[idx("Section")];
+    const name = row[idx("Name")];
+    const clazz = row[idx("Class")];
+
+    // Section F: MI
+    const miScores = [0, 0, 0, 0, 0, 0, 0, 0];
+    for (let q = 1; q <= 24; q++) {
+      const colNameF = "Sec_F_" + q;
+      const cIdxF = idx(colNameF);
+      const ansF = norm(row[cIdxF]);
+      const wF = F_WEIGHTS[ansF] || 0;
+      const groupIndex = Math.floor((q - 1) / 3);
+      miScores[groupIndex] += wF;
+    }
+
+    // Section E: Aptitude
+    const aptScores: Record<string, number> = {};
+    APT_LABELS.forEach(l => aptScores[l] = 0);
+    for (const label in E_GROUPS) {
+      const indices = E_GROUPS[label];
+      let sum = 0;
+      for (const qE of indices) {
+        const colNameE = "Sec_E_" + qE;
+        const cIdxE = idx(colNameE);
+        const ansE = norm(row[cIdxE]);
+        const wE = E_WEIGHTS[ansE] || 0;
+        sum += wE;
+      }
+      aptScores[label] = sum;
+    }
+
+    // Section D: RIASEC
+    const riaSecScores: Record<string, number> = { "R": 0, "I": 0, "A": 0, "S": 0, "E": 0, "C": 0 };
+    for (let d = 1; d <= 54; d++) {
+      const colNameD = "Sec_D_" + d;
+      const cIdxD = idx(colNameD);
+      const ansD = norm(row[cIdxD]);
+      let wD = 0;
+      if (ansD === "YES") wD = 2;
+      else if (ansD === "NO") wD = 1;
+      
+      const riIndex = (d - 1) % 6;
+      const letter = RIASEC_LETTERS[riIndex];
+      riaSecScores[letter] += wD;
+    }
+
+    // Section C: SOI
+    const soiList: string[] = [];
+    for (let c = 1; c <= 15; c++) {
+      const colNameC = "Sec_C_" + c;
+      const cIdxC = idx(colNameC);
+      if (isSelected(row[cIdxC])) {
+        soiList.push(SOI_LABELS[c - 1]);
+      }
+    }
+    while (soiList.length < 5) soiList.push("");
+
+    // Section B: Values
+    const valList: string[] = [];
+    for (let b = 1; b <= 15; b++) {
+      const colNameB = "Sec_B_" + b;
+      const cIdxB = idx(colNameB);
+      if (isSelected(row[cIdxB])) {
+        valList.push(VALUE_LABELS[b - 1]);
+      }
+    }
+    while (valList.length < 5) valList.push("");
+
+    // Section A: Career Aspirations
+    const careerList: string[] = [];
+    for (let a = 1; a <= 24; a++) {
+      const colNameA = "Sec_A_" + a;
+      const cIdxA = idx(colNameA);
+      if (isSelected(row[cIdxA])) {
+        careerList.push(CAREER_LABELS[a - 1]);
+      }
+    }
+    while (careerList.length < 5) careerList.push("");
+
+    // Construct Master Row Object
+    const masterRow: any = {
+      "School": school,
+      "Section": section,
+      "Roll Number": roll,
+      "Name": name,
+      "Class": clazz
+    };
+
+    MI_LABELS.forEach((label, i) => masterRow[label] = miScores[i]);
+    APT_LABELS.forEach((label) => masterRow[label] = aptScores[label]);
+    RIASEC_LETTERS.forEach((l) => masterRow[l] = riaSecScores[l]);
+    
+    for(let i=0; i<5; i++) masterRow[`SOI ${i+1}`] = soiList[i];
+    for(let i=0; i<5; i++) masterRow[`Value ${i+1}`] = valList[i];
+    for(let i=0; i<5; i++) masterRow[`Career Aspiration ${i+1}`] = careerList[i];
+
+    output.push(masterRow);
+  }
+  
+  return output;
+}
+
+
 const AdminDashboard = () => {
   const [loading, setLoading] = useState(false); // Start as false to show dashboard immediately
   const [refreshing, setRefreshing] = useState(false); // Separate state for refresh button
@@ -164,11 +370,28 @@ const AdminDashboard = () => {
   const [students, setStudents] = useState<StudentData[]>([]);
   const [selectedClass, setSelectedClass] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [isNormalizing, setIsNormalizing] = useState(false);
+  const [isNormalizingEnglish, setIsNormalizingEnglish] = useState(false);
+  
+  // Pipeline State (New)
+  const [pipelineState, setPipelineState] = useState<{[key: number]: { status: 'pending' | 'running' | 'success' | 'error', logs: string }}>({});
+  const [showPipelineModal, setShowPipelineModal] = useState(false);
+  const [pipelineData, setPipelineData] = useState<any[]>([]);
+  const [activePipelineLanguage, setActivePipelineLanguage] = useState<'english' | 'hindi'>('english');
+
+  const [generatedReports, setGeneratedReports] = useState<any[]>([]);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [loadingReports, setLoadingReports] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<StudentData | null>(null);
   const [sortField, setSortField] = useState<SortField>('joined');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [copyStatus, setCopyStatus] = useState<string>('');
+  
+  // OMR Data Upload State
+  const [showOmrModal, setShowOmrModal] = useState(false);
+  const [omrData, setOmrData] = useState<any[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // New filter states for master admin dashboard
   const [chartTenantFilter, setChartTenantFilter] = useState<string>('all');
@@ -184,15 +407,6 @@ const AdminDashboard = () => {
   // Student selection states
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [tenantFilter, setTenantFilter] = useState<string>('all');
-  
-  // Export loading states
-  const [exportingDetailed, setExportingDetailed] = useState(false);
-  const [exportError, setExportError] = useState<string | null>(null);
-  const [exportSuccess, setExportSuccess] = useState(false);
-  
-  // Debounce search term
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -493,21 +707,6 @@ const AdminDashboard = () => {
     // No finally block - don't block UI with loading state
   };
 
-  // Debounce search term for performance
-  useEffect(() => {
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-    searchTimeoutRef.current = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
-    }, 300);
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, [searchTerm]);
-
   // Effect to recalculate stats when chart filters change (only for master admin)
   useEffect(() => {
     if (isMainDomain && students.length > 0) {
@@ -515,21 +714,17 @@ const AdminDashboard = () => {
     }
   }, [chartTenantFilter, chartClassFilter, students]);
 
-  // Memoize filtered students for performance
-  const filteredStudents = useMemo(() => {
-    return students
-      .filter(student => {
-        const matchesClass = selectedClass === 'all' || student.educational.studentClass === selectedClass;
-        const matchesSearch = debouncedSearchTerm === '' || 
-          student.personal.name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-          student.personal.email.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-          student.personal.phone?.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
-          student.educational.school?.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
-        const matchesStatus = statusFilter === 'all' || getAssessmentStatus(student) === statusFilter;
-        const matchesTenant = tenantFilter === 'all' || student.tenant === tenantFilter;
-        return matchesClass && matchesSearch && matchesStatus && matchesTenant;
-      })
-      .sort((a, b) => {
+  const filteredStudents = students
+    .filter(student => {
+      const matchesClass = selectedClass === 'all' || student.educational.studentClass === selectedClass;
+      const matchesSearch = searchTerm === '' || 
+        student.personal.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        student.personal.email.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === 'all' || getAssessmentStatus(student) === statusFilter;
+      const matchesTenant = tenantFilter === 'all' || student.tenant === tenantFilter;
+      return matchesClass && matchesSearch && matchesStatus && matchesTenant;
+    })
+    .sort((a, b) => {
       const order = sortOrder === 'asc' ? 1 : -1;
       switch (sortField) {
         case 'name':
@@ -553,33 +748,27 @@ const AdminDashboard = () => {
           return 0;
       }
     });
-  }, [students, selectedClass, debouncedSearchTerm, statusFilter, tenantFilter, sortField, sortOrder]);
 
-  // Handle student selection - memoized for performance
-  const handleStudentSelect = useCallback((studentId: string) => {
-    setSelectedStudents(prev => {
-      const newSelected = new Set(prev);
-      if (newSelected.has(studentId)) {
-        newSelected.delete(studentId);
-      } else {
-        newSelected.add(studentId);
-      }
-      return newSelected;
-    });
-  }, []);
+  // Handle student selection
+  const handleStudentSelect = (studentId: string) => {
+    const newSelected = new Set(selectedStudents);
+    if (newSelected.has(studentId)) {
+      newSelected.delete(studentId);
+    } else {
+      newSelected.add(studentId);
+    }
+    setSelectedStudents(newSelected);
+  };
 
-  const handleSelectAll = useCallback(() => {
-    setSelectedStudents(prev => {
-      if (prev.size === filteredStudents.length) {
-        return new Set();
-      } else {
-        return new Set(filteredStudents.map(student => student.uid));
-      }
-    });
-  }, [filteredStudents]);
+  const handleSelectAll = () => {
+    if (selectedStudents.size === filteredStudents.length) {
+      setSelectedStudents(new Set());
+    } else {
+      setSelectedStudents(new Set(filteredStudents.map(student => student.uid)));
+    }
+  };
 
-  const exportToExcel = () => {
-    // Define the headers for the Excel file in the correct order
+  const prepareExportData = (studentsToExport: StudentData[]) => {
     const headers = [
       'UID',
       'Name',
@@ -631,68 +820,256 @@ const AdminDashboard = () => {
       'Career Aspiration 4'
     ];
 
-    // Prepare the data for export in the same order as headers
-    const exportData = filteredStudents.map(student => {
-      // Create array of values in the same order as headers
-      const rowData = [
-        student.uid || '',
-        student.personal.name || '',
-        student.educational.studentClass || '',
-        student.educational.section || '',
-        student.educational.school || '',
-        student.personal.dob || '',
-        student.personal.email || '',
-        (student.authCreatedAt || student.createdAt).toLocaleDateString() || '',
-        student.tenant || '',
-        getAssessmentStatus(student),
-        student.personalityScores?.R || 0,
-        student.personalityScores?.I || 0,
-        student.personalityScores?.A || 0,
-        student.personalityScores?.S || 0,
-        student.personalityScores?.E || 0,
-        student.personalityScores?.C || 0,
-        student.multipleIntelligenceScores?.['Bodily-Kinesthetic'] || 0,
-        student.multipleIntelligenceScores?.Linguistic || 0,
-        student.multipleIntelligenceScores?.Intrapersonal || 0,
-        student.multipleIntelligenceScores?.Interpersonal || 0,
-        student.multipleIntelligenceScores?.['Logical-Mathematical'] || 0,
-        student.multipleIntelligenceScores?.Musical || 0,
-        student.multipleIntelligenceScores?.['Spatial-Visual'] || 0,
-        student.multipleIntelligenceScores?.Naturalistic || 0,
-        student.abilityScores?.['Creativity / Artistic'] || 0,
-        student.abilityScores?.['Logical reasoning'] || 0,
-        student.abilityScores?.['Language/ Communication'] || 0,
-        student.abilityScores?.['Form perception'] || 0,
-        student.abilityScores?.Computational || 0,
-        student.abilityScores?.['Finger dexterity'] || 0,
-        student.abilityScores?.Technical || 0,
-        student.abilityScores?.['Motor movement'] || 0,
-        student.abilityScores?.['Decision making & problem solving'] || 0,
-        student.abilityScores?.['Speed and accuracy'] || 0,
-        (student.subjectsOfInterest || [])[0] || '',
-        (student.subjectsOfInterest || [])[1] || '',
-        (student.subjectsOfInterest || [])[2] || '',
-        (student.subjectsOfInterest || [])[3] || '',
-        (student.subjectsOfInterest || [])[4] || '',
-        (student.values || [])[0] || '',
-        (student.values || [])[1] || '',
-        (student.values || [])[2] || '',
-        (student.values || [])[3] || '',
-        (student.values || [])[4] || '',
-        (student.careerAspirations || [])[0] || '',
-        (student.careerAspirations || [])[1] || '',
-        (student.careerAspirations || [])[2] || '',
-        (student.careerAspirations || [])[3] || ''
-      ];
-      
-      return rowData;
-    });
+    const rows = studentsToExport.map(student => [
+      student.uid || '',
+      student.personal.name || '',
+      student.educational.studentClass || '',
+      student.educational.section || '',
+      student.educational.school || '',
+      student.personal.dob || '',
+      student.personal.email || '',
+      (student.authCreatedAt || student.createdAt).toLocaleDateString() || '',
+      student.tenant || '',
+      getAssessmentStatus(student),
+      student.personalityScores?.R || 0,
+      student.personalityScores?.I || 0,
+      student.personalityScores?.A || 0,
+      student.personalityScores?.S || 0,
+      student.personalityScores?.E || 0,
+      student.personalityScores?.C || 0,
+      student.multipleIntelligenceScores?.['Bodily-Kinesthetic'] || 0,
+      student.multipleIntelligenceScores?.Linguistic || 0,
+      student.multipleIntelligenceScores?.Intrapersonal || 0,
+      student.multipleIntelligenceScores?.Interpersonal || 0,
+      student.multipleIntelligenceScores?.['Logical-Mathematical'] || 0,
+      student.multipleIntelligenceScores?.Musical || 0,
+      student.multipleIntelligenceScores?.['Spatial-Visual'] || 0,
+      student.multipleIntelligenceScores?.Naturalistic || 0,
+      student.abilityScores?.['Creativity / Artistic'] || 0,
+      student.abilityScores?.['Logical reasoning'] || 0,
+      student.abilityScores?.['Language/ Communication'] || 0,
+      student.abilityScores?.['Form perception'] || 0,
+      student.abilityScores?.Computational || 0,
+      student.abilityScores?.['Finger dexterity'] || 0,
+      student.abilityScores?.Technical || 0,
+      student.abilityScores?.['Motor movement'] || 0,
+      student.abilityScores?.['Decision making & problem solving'] || 0,
+      student.abilityScores?.['Speed and accuracy'] || 0,
+      (student.subjectsOfInterest || [])[0] || '',
+      (student.subjectsOfInterest || [])[1] || '',
+      (student.subjectsOfInterest || [])[2] || '',
+      (student.subjectsOfInterest || [])[3] || '',
+      (student.subjectsOfInterest || [])[4] || '',
+      (student.values || [])[0] || '',
+      (student.values || [])[1] || '',
+      (student.values || [])[2] || '',
+      (student.values || [])[3] || '',
+      (student.values || [])[4] || '',
+      (student.careerAspirations || [])[0] || '',
+      (student.careerAspirations || [])[1] || '',
+      (student.careerAspirations || [])[2] || '',
+      (student.careerAspirations || [])[3] || ''
+    ]);
 
+    return [headers, ...rows];
+  };
+
+  // Helper to append logs
+  const appendLog = (phase: number, text: string) => {
+    setPipelineState(prev => ({
+      ...prev,
+      [phase]: {
+        ...prev[phase],
+        logs: (prev[phase]?.logs || "") + text
+      }
+    }));
+  };
+
+  // Helper to set status
+  const setStatus = (phase: number, status: 'pending' | 'running' | 'success' | 'error') => {
+    setPipelineState(prev => ({
+      ...prev,
+      [phase]: {
+        ...prev[phase],
+        status
+      }
+    }));
+  };
+
+  const runPhase = async (phase: number, language: string, data?: any[][]): Promise<boolean> => {
+    setStatus(phase, 'running');
+    appendLog(phase, `\n--- Starting Phase ${phase} (${language}) ---\n`);
+
+    try {
+      const body: any = { phase, language };
+      if (phase === 0 && data) {
+        body.data = data;
+      }
+
+      const response = await fetch('/api/admin/run-pipeline-phase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        appendLog(phase, (result.output || "") + `\nPhase ${phase} Completed Successfully.\n`);
+        setStatus(phase, 'success');
+        if (result.generatedReports && result.generatedReports.length > 0) {
+           setGeneratedReports(result.generatedReports);
+        }
+        return true;
+      } else {
+        throw new Error(result.error || `Phase ${phase} failed`);
+      }
+    } catch (error: any) {
+      console.error(`Error running phase ${phase}:`, error);
+      appendLog(phase, `\nERROR: ${error.message}\n`);
+      setStatus(phase, 'error');
+      return false;
+    }
+  };
+
+  const handleRerunPhase = async (phase: number) => {
+    if (isNormalizing || isNormalizingEnglish) return;
+    
+    // Reset logs for this phase only
+    setPipelineState(prev => ({
+      ...prev,
+      [phase]: { status: 'pending', logs: '' }
+    }));
+
+    if (activePipelineLanguage === 'english') setIsNormalizingEnglish(true);
+    else setIsNormalizing(true);
+
+    try {
+      await runPhase(phase, activePipelineLanguage, phase === 0 ? pipelineData : undefined);
+    } finally {
+      setIsNormalizing(false);
+      setIsNormalizingEnglish(false);
+    }
+  };
+
+  const runPipelinePhase = async (phase: number, language: string, data?: any[][]): Promise<boolean> => {
+    // Legacy wrapper if needed, but we should switch to runPhase
+    return runPhase(phase, language, data);
+  };
+
+  const fetchReports = async () => {
+    setLoadingReports(true);
+    try {
+      const response = await fetch('/api/admin/list-reports');
+      const data = await response.json();
+      if (data.reports) {
+        setGeneratedReports(data.reports);
+      }
+    } catch (error) {
+      console.error('Failed to fetch reports:', error);
+    } finally {
+      setLoadingReports(false);
+      setShowReportModal(true);
+    }
+  };
+
+  const handleRunPipeline = async () => {
+    if (isNormalizing) return;
+    
+    // Get selected students
+    const selectedStudentData = filteredStudents.filter(student => selectedStudents.has(student.uid));
+    
+    if (selectedStudentData.length === 0) {
+      alert('Please select at least one student to run the pipeline.');
+      return;
+    }
+
+    const confirmRun = window.confirm(`Are you sure you want to run the full Hindi pipeline (Phases 0-6) for ${selectedStudentData.length} selected students? This may take a while.`);
+    if (!confirmRun) return;
+
+    setIsNormalizing(true);
+    setShowPipelineModal(true);
+    setActivePipelineLanguage('hindi');
+    
+    // Prepare data
+    const exportData = prepareExportData(selectedStudentData);
+    setPipelineData(exportData);
+
+    // Initialize state
+    const initialState: any = {};
+    for(let i=0; i<=6; i++) initialState[i] = { status: 'pending', logs: '' };
+    setPipelineState(initialState);
+    setGeneratedReports([]);
+
+    try {
+      // Phase 0: Normalization
+      const phase0Success = await runPhase(0, 'hindi', exportData);
+      if (!phase0Success) return;
+
+      // Phases 1-6
+      for (let i = 1; i <= 6; i++) {
+        const success = await runPhase(i, 'hindi');
+        if (!success) return;
+      }
+
+    } catch (error: any) {
+      console.error('Error running pipeline:', error);
+    } finally {
+      setIsNormalizing(false);
+    }
+  };
+
+  const handleRunNormalizerEnglish = async () => {
+    if (isNormalizingEnglish) return;
+    
+    // Get selected students
+    const selectedStudentData = filteredStudents.filter(student => selectedStudents.has(student.uid));
+    
+    if (selectedStudentData.length === 0) {
+      alert('Please select at least one student to run the pipeline.');
+      return;
+    }
+
+    const confirmRun = window.confirm(`Are you sure you want to run the full English pipeline (Phases 0-6) for ${selectedStudentData.length} selected students? This may take a while.`);
+    if (!confirmRun) return;
+
+    setIsNormalizingEnglish(true);
+    setShowPipelineModal(true);
+    setActivePipelineLanguage('english');
+
+    // Prepare data
+    const exportData = prepareExportData(selectedStudentData);
+    setPipelineData(exportData);
+
+    // Initialize state
+    const initialState: any = {};
+    for(let i=0; i<=6; i++) initialState[i] = { status: 'pending', logs: '' };
+    setPipelineState(initialState);
+    setGeneratedReports([]);
+
+    try {
+      // Phase 0: Normalization
+      const phase0Success = await runPhase(0, 'english', exportData);
+      if (!phase0Success) return;
+
+      // Phases 1-6
+      for (let i = 1; i <= 6; i++) {
+        const success = await runPhase(i, 'english');
+        if (!success) return;
+      }
+
+    } catch (error: any) {
+      console.error('Error running pipeline:', error);
+    } finally {
+      setIsNormalizingEnglish(false);
+    }
+  };
+
+  const exportToExcel = () => {
+    const allData = prepareExportData(filteredStudents);
+    
     // Create workbook and worksheet
     const wb = XLSX.utils.book_new();
-    
-    // Add headers as the first row
-    const allData = [headers, ...exportData];
     const ws = XLSX.utils.aoa_to_sheet(allData);
     
     // Add worksheet to workbook
@@ -715,120 +1092,10 @@ const AdminDashboard = () => {
       return;
     }
 
-    // Define the headers for the Excel file in the correct order
-    const headers = [
-      'UID',
-      'Name',
-      'Class',
-      'Section',
-      'School',
-      'DOB',
-      'Email',
-      'Joined Date',
-      'Tenant',
-      'Status',
-      'Realistic',
-      'Investigative', 
-      'Artistic',
-      'Social',
-      'Enterprising',
-      'Conventional',
-      'Bodily-Kinesthetic',
-      'Linguistic',
-      'Intrapersonal',
-      'Interpersonal',
-      'Logical',
-      'Musical',
-      'Visual-Spatial',
-      'Naturalistic',
-      'Creativity',
-      'Logical reasoning',
-      'Communication',
-      'Form perception',
-      'Computational',
-      'Finger dexterity',
-      'Technical',
-      'Motor movement',
-      'Decision making & problem solving',
-      'Speed and accuracy',
-      'Subject Of Interest 1',
-      'Subject Of Interest 2',
-      'Subject Of Interest 3',
-      'Subject Of Interest 4',
-      'Subject Of Interest 5',
-      'Value 1',
-      'Value 2',
-      'Value 3',
-      'Value 4',
-      'Value 5',
-      'Career Aspiration 1',
-      'Career Aspiration 2',
-      'Career Aspiration 3',
-      'Career Aspiration 4'
-    ];
-
-    // Prepare the data for export in the same order as headers
-    const exportData = selectedStudentData.map(student => {
-      // Create array of values in the same order as headers
-      const rowData = [
-        student.uid || '',
-        student.personal.name || '',
-        student.educational.studentClass || '',
-        student.educational.section || '',
-        student.educational.school || '',
-        student.personal.dob || '',
-        student.personal.email || '',
-        (student.authCreatedAt || student.createdAt).toLocaleDateString() || '',
-        student.tenant || '',
-        getAssessmentStatus(student),
-        student.personalityScores?.R || 0,
-        student.personalityScores?.I || 0,
-        student.personalityScores?.A || 0,
-        student.personalityScores?.S || 0,
-        student.personalityScores?.E || 0,
-        student.personalityScores?.C || 0,
-        student.multipleIntelligenceScores?.['Bodily-Kinesthetic'] || 0,
-        student.multipleIntelligenceScores?.Linguistic || 0,
-        student.multipleIntelligenceScores?.Intrapersonal || 0,
-        student.multipleIntelligenceScores?.Interpersonal || 0,
-        student.multipleIntelligenceScores?.['Logical-Mathematical'] || 0,
-        student.multipleIntelligenceScores?.Musical || 0,
-        student.multipleIntelligenceScores?.['Spatial-Visual'] || 0,
-        student.multipleIntelligenceScores?.Naturalistic || 0,
-        student.abilityScores?.['Creativity / Artistic'] || 0,
-        student.abilityScores?.['Logical reasoning'] || 0,
-        student.abilityScores?.['Language/ Communication'] || 0,
-        student.abilityScores?.['Form perception'] || 0,
-        student.abilityScores?.Computational || 0,
-        student.abilityScores?.['Finger dexterity'] || 0,
-        student.abilityScores?.Technical || 0,
-        student.abilityScores?.['Motor movement'] || 0,
-        student.abilityScores?.['Decision making & problem solving'] || 0,
-        student.abilityScores?.['Speed and accuracy'] || 0,
-        (student.subjectsOfInterest || [])[0] || '',
-        (student.subjectsOfInterest || [])[1] || '',
-        (student.subjectsOfInterest || [])[2] || '',
-        (student.subjectsOfInterest || [])[3] || '',
-        (student.subjectsOfInterest || [])[4] || '',
-        (student.values || [])[0] || '',
-        (student.values || [])[1] || '',
-        (student.values || [])[2] || '',
-        (student.values || [])[3] || '',
-        (student.values || [])[4] || '',
-        (student.careerAspirations || [])[0] || '',
-        (student.careerAspirations || [])[1] || '',
-        (student.careerAspirations || [])[2] || '',
-        (student.careerAspirations || [])[3] || ''
-      ];
-      
-      return rowData;
-    });
+    const allData = prepareExportData(selectedStudentData);
 
     // Create workbook and worksheet
     const wb = XLSX.utils.book_new();
-    
-    // Add headers as the first row
-    const allData = [headers, ...exportData];
     const ws = XLSX.utils.aoa_to_sheet(allData);
     
     // Add worksheet to workbook
@@ -841,6 +1108,88 @@ const AdminDashboard = () => {
     
     // Save the file
     XLSX.writeFile(wb, filename);
+  };
+
+  const handleOmrUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const bstr = evt.target?.result;
+      const wb = XLSX.read(bstr, { type: 'binary' });
+      const wsname = wb.SheetNames[0];
+      const ws = wb.Sheets[wsname];
+      // Use header: 1 to get array of arrays (raw values)
+      const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      
+      try {
+        const masterData = generateMasterSheetData(rawData as any[][]);
+        setOmrData(masterData);
+        setShowOmrModal(true);
+      } catch (error: any) {
+        console.error("Error generating master sheet:", error);
+        alert(`Error generating Master Sheet: ${error.message}`);
+      }
+      
+      // Reset file input so same file can be selected again if needed
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleGenerateReports = async (language: 'english' | 'hindi') => {
+    if (omrData.length === 0) return;
+    
+    // Prepare data for Phase 0
+    const headers = Object.keys(omrData[0]);
+    const rows = omrData.map(obj => headers.map(h => obj[h]));
+    const dataToSend = [headers, ...rows];
+
+    // Close OMR modal and open progress modal
+    setShowOmrModal(false);
+    setShowPipelineModal(true);
+    setActivePipelineLanguage(language);
+    setPipelineData(dataToSend);
+    
+    // Initialize state
+    const initialState: any = {};
+    for(let i=0; i<=6; i++) initialState[i] = { status: 'pending', logs: '' };
+    setPipelineState(initialState);
+    setGeneratedReports([]);
+    
+    try {
+      if (language === 'english') {
+        setIsNormalizingEnglish(true);
+      } else {
+        setIsNormalizing(true);
+      }
+
+      // Phase 0: Normalization
+      const phase0Success = await runPhase(0, language, dataToSend);
+      if (!phase0Success) return;
+
+      // Phases 1-6
+      for (let i = 1; i <= 6; i++) {
+        const success = await runPhase(i, language);
+        if (!success) return;
+      }
+
+    } catch (error: any) {
+      console.error('Error running pipeline:', error);
+    } finally {
+      if (language === 'english') {
+        setIsNormalizingEnglish(false);
+      } else {
+        setIsNormalizing(false);
+      }
+    }
   };
 
   const exportTenantToExcel = () => {
@@ -1702,262 +2051,174 @@ const AdminDashboard = () => {
             <div className="flex flex-col gap-4">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <h2 className="text-xl font-semibold text-gray-900">Student List</h2>
-                <div className="flex flex-col gap-2">
-                  {/* Success/Error Messages */}
-                  {exportSuccess && (
-                    <div className="text-xs text-green-600 font-medium">
-                      ✓ Export successful! File downloaded.
-                    </div>
-                  )}
-                  {exportError && (
-                    <div className="text-xs text-red-600 font-medium">
-                      ✗ {exportError}
-                    </div>
-                  )}
-                  <div className="flex flex-wrap gap-2">
-                    {/* Export Buttons - Only 2 buttons, dynamic text based on selection */}
-                  {isMainDomain ? (
+                <div className="flex flex-wrap gap-2">
+                  {isMainDomain && (
                     <>
                       <button
-                        onClick={selectedStudents.size > 0 ? exportSelectedToExcel : exportToExcel}
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200"
+                        onClick={handleRunPipeline}
+                        disabled={isNormalizing || selectedStudents.size === 0}
+                        className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
+                          isNormalizing || selectedStudents.size === 0
+                            ? 'bg-indigo-400 cursor-not-allowed'
+                            : 'bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500'
+                        }`}
+                      >
+                        {isNormalizing ? (
+                          <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></span>
+                        ) : (
+                          <ChartBarIcon className="h-4 w-4 mr-2" />
+                        )}
+                        {isNormalizing ? 'Generating Hindi...' : 'Generate Report Hindi'}
+                      </button>
+                      <button
+                        onClick={handleRunNormalizerEnglish}
+                        disabled={isNormalizingEnglish || selectedStudents.size === 0}
+                        className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
+                          isNormalizingEnglish || selectedStudents.size === 0
+                            ? 'bg-purple-400 cursor-not-allowed'
+                            : 'bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500'
+                        }`}
+                      >
+                        {isNormalizingEnglish ? (
+                          <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></span>
+                        ) : (
+                          <ChartBarIcon className="h-4 w-4 mr-2" />
+                        )}
+                        {isNormalizingEnglish ? 'Generating English...' : 'Generate Report English'}
+                      </button>
+                      <button
+                        onClick={exportToExcel}
+                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200"
                       >
                         <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
-                        {selectedStudents.size > 0 
-                          ? `Export Selected Scores (${selectedStudents.size})`
-                          : 'Export Scores'}
-                      </button>
-                      <button
-                        onClick={async () => {
-                          try {
-                            setExportingDetailed(true);
-                            setExportError(null);
-                            setExportSuccess(false);
-                            
-                            const selectedUids = Array.from(selectedStudents);
-                            const url = selectedUids.length > 0 
-                              ? `/api/admin/export-detailed?uids=${selectedUids.join(',')}`
-                              : '/api/admin/export-detailed';
-                            
-                            const response = await fetch(url);
-                            
-                            if (!response.ok) {
-                              throw new Error(`Export failed: ${response.statusText}`);
-                            }
-                            
-                            const blob = await response.blob();
-                            const downloadUrl = window.URL.createObjectURL(blob);
-                            const link = document.createElement('a');
-                            link.href = downloadUrl;
-                            
-                            // Get filename from Content-Disposition header or use default
-                            const contentDisposition = response.headers.get('Content-Disposition');
-                            let filename = 'detailed_assessment_responses.xlsx';
-                            if (contentDisposition) {
-                              const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
-                              if (filenameMatch) {
-                                filename = filenameMatch[1];
-                              }
-                            }
-                            
-                            link.download = filename;
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            window.URL.revokeObjectURL(downloadUrl);
-                            
-                            setExportSuccess(true);
-                            setTimeout(() => setExportSuccess(false), 3000);
-                          } catch (error) {
-                            console.error('Export error:', error);
-                            setExportError(error instanceof Error ? error.message : 'Failed to export detailed responses');
-                            setTimeout(() => setExportError(null), 5000);
-                          } finally {
-                            setExportingDetailed(false);
-                          }
-                        }}
-                        disabled={exportingDetailed}
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {exportingDetailed ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                            Exporting...
-                          </>
-                        ) : (
-                          <>
-                            <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
-                            {selectedStudents.size > 0 
-                              ? `Export Selected Detailed (${selectedStudents.size})`
-                              : 'Export Detailed Responses'}
-                          </>
-                        )}
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={exportTenantToExcel}
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200"
-                      >
-                        <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
-                        Export Scores
-                      </button>
-                      <button
-                        onClick={async () => {
-                          try {
-                            setExportingDetailed(true);
-                            setExportError(null);
-                            setExportSuccess(false);
-                            
-                            const response = await fetch('/api/admin/export-detailed');
-                            
-                            if (!response.ok) {
-                              throw new Error(`Export failed: ${response.statusText}`);
-                            }
-                            
-                            const blob = await response.blob();
-                            const downloadUrl = window.URL.createObjectURL(blob);
-                            const link = document.createElement('a');
-                            link.href = downloadUrl;
-                            
-                            // Get filename from Content-Disposition header or use default
-                            const contentDisposition = response.headers.get('Content-Disposition');
-                            let filename = 'detailed_assessment_responses.xlsx';
-                            if (contentDisposition) {
-                              const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
-                              if (filenameMatch) {
-                                filename = filenameMatch[1];
-                              }
-                            }
-                            
-                            link.download = filename;
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            window.URL.revokeObjectURL(downloadUrl);
-                            
-                            setExportSuccess(true);
-                            setTimeout(() => setExportSuccess(false), 3000);
-                          } catch (error) {
-                            console.error('Export error:', error);
-                            setExportError(error instanceof Error ? error.message : 'Failed to export detailed responses');
-                            setTimeout(() => setExportError(null), 5000);
-                          } finally {
-                            setExportingDetailed(false);
-                          }
-                        }}
-                        disabled={exportingDetailed}
-                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {exportingDetailed ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                            Exporting...
-                          </>
-                        ) : (
-                          <>
-                            <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
-                            Export Detailed Responses
-                          </>
-                        )}
+                        Export All
                       </button>
                     </>
                   )}
-                  </div>
+                  {isMainDomain && (
+                    <button
+                      onClick={exportSelectedToExcel}
+                      disabled={selectedStudents.size === 0}
+                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                      Export Selected ({selectedStudents.size})
+                    </button>
+                  )}
+                  {isMainDomain && (
+                    <>
+                      {/* <button
+                        onClick={handleOmrUploadClick}
+                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-all duration-200"
+                      >
+                        <ArrowDownTrayIcon className="h-4 w-4 mr-2 transform rotate-180" />
+                        Upload OMR Data
+                      </button>
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileUpload}
+                        accept=".xlsx, .xls"
+                        className="hidden"
+                      /> */}
+                    </>
+                  )}
+                  {!isMainDomain && (
+                    <button
+                      onClick={exportTenantToExcel}
+                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200"
+                    >
+                      <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                      Export Excel
+                    </button>
+                  )}
                 </div>
               </div>
               
-              {/* Filters Row - Cleaner UI */}
-              <div className="flex flex-wrap items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+              {/* Filters Row */}
+              <div className="flex flex-wrap gap-2">
                 {isMainDomain && (
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs font-medium text-gray-700 whitespace-nowrap">Tenant:</label>
-                    <select
-                      value={tenantFilter}
-                      onChange={(e) => {
-                        setTenantFilter(e.target.value);
-                        setSelectedStudents(new Set());
-                      }}
-                      className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-1.5 px-2 min-w-[120px]"
-                    >
-                      <option value="all">All Tenants</option>
-                      {availableTenants.map(tenant => (
-                        <option key={tenant} value={tenant}>{tenant.toUpperCase()}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <label className="text-xs font-medium text-gray-700 whitespace-nowrap">Class:</label>
                   <select
-                    value={selectedClass}
+                    value={tenantFilter}
                     onChange={(e) => {
-                      setSelectedClass(e.target.value);
-                      setSelectedStudents(new Set());
+                      setTenantFilter(e.target.value);
+                      setSelectedStudents(new Set()); // Clear selections when tenant changes
                     }}
-                    className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-1.5 px-2 min-w-[120px]"
+                    className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
                   >
-                    <option value="all">All Classes</option>
-                    {Object.keys(stats.classDistribution).sort((a, b) => Number(a) - Number(b)).map(cls => (
-                      <option key={cls} value={cls}>Class {cls}</option>
+                    <option value="all">All Tenants</option>
+                    {availableTenants.map(tenant => (
+                      <option key={tenant} value={tenant}>{tenant.toUpperCase()}</option>
                     ))}
                   </select>
-                </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-xs font-medium text-gray-700 whitespace-nowrap">Status:</label>
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => {
-                      setStatusFilter(e.target.value);
-                      setSelectedStudents(new Set());
-                    }}
-                    className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm py-1.5 px-2 min-w-[140px]"
-                  >
-                    <option value="all">All Status</option>
-                    <option value="Completed">Completed</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Not Started">Not Started</option>
-                  </select>
-                </div>
-                <div className="flex items-center gap-2 flex-1 min-w-[200px]">
-                  <label className="text-xs font-medium text-gray-700 whitespace-nowrap">Search:</label>
-                  <div className="relative flex-1">
-                    <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
-                      <MagnifyingGlassIcon className="h-4 w-4 text-gray-400" />
-                    </div>
-                    <input
-                      type="text"
-                      value={searchTerm}
-                      onChange={(e) => {
-                        setSearchTerm(e.target.value);
-                        setSelectedStudents(new Set());
-                      }}
-                      className="pl-8 pr-3 py-1.5 w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
-                      placeholder="Name, email, phone, or school..."
-                    />
-                  </div>
-                </div>
-                {isMainDomain && filteredStudents.length > 0 && (
-                  <div className="flex items-center gap-2 ml-auto">
-                    <span className="text-xs text-gray-600 whitespace-nowrap">
-                      {selectedStudents.size > 0 && (
-                        <span className="font-medium text-blue-600">{selectedStudents.size}</span>
-                      )}
-                      {selectedStudents.size > 0 && ' / '}
-                      <span className="font-medium">{filteredStudents.length}</span> students
-                    </span>
-                    {selectedStudents.size > 0 && (
-                      <button
-                        onClick={() => setSelectedStudents(new Set())}
-                        className="text-xs text-red-600 hover:text-red-800 font-medium"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
                 )}
+                <select
+                  value={selectedClass}
+                  onChange={(e) => {
+                    setSelectedClass(e.target.value);
+                    setSelectedStudents(new Set()); // Clear selections when filter changes
+                  }}
+                  className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+                >
+                  <option value="all">All Classes</option>
+                  {Object.keys(stats.classDistribution).sort((a, b) => Number(a) - Number(b)).map(cls => (
+                    <option key={cls} value={cls}>Class {cls}</option>
+                  ))}
+                </select>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value);
+                    setSelectedStudents(new Set()); // Clear selections when filter changes
+                  }}
+                  className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+                >
+                  <option value="all">All Status</option>
+                  <option value="Completed">Completed</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Not Started">Not Started</option>
+                </select>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search students..."
+                    value={searchTerm}
+                    onChange={(e) => {
+                      setSearchTerm(e.target.value);
+                      setSelectedStudents(new Set()); // Clear selections when search changes
+                    }}
+                    className="pl-10 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+                  />
+                </div>
               </div>
+
+              {/* Selection Info and Actions */}
+              {isMainDomain && filteredStudents.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-gray-50 rounded-md">
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={handleSelectAll}
+                      className="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      {selectedStudents.size === filteredStudents.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                    <span className="text-sm text-gray-600">
+                      {selectedStudents.size} of {filteredStudents.length} students selected
+                    </span>
+                  </div>
+                  {selectedStudents.size > 0 && (
+                    <button
+                      onClick={() => setSelectedStudents(new Set())}
+                      className="text-xs text-red-600 hover:text-red-800"
+                    >
+                      Clear Selection
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -1965,13 +2226,12 @@ const AdminDashboard = () => {
               <thead className="bg-gray-50">
                 <tr>
                   {isMainDomain && (
-                    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
+                    <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       <input
                         type="checkbox"
                         checked={filteredStudents.length > 0 && selectedStudents.size === filteredStudents.length}
                         onChange={handleSelectAll}
-                        className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 cursor-pointer"
-                        title={selectedStudents.size === filteredStudents.length ? 'Deselect all' : 'Select all'}
+                        className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                       />
                     </th>
                   )}
@@ -2036,12 +2296,12 @@ const AdminDashboard = () => {
                   return (
                     <tr key={student.uid} className="hover:bg-gray-50">
                       {isMainDomain && (
-                        <td className="px-4 py-4 whitespace-nowrap text-center">
+                        <td className="px-3 py-4 whitespace-nowrap">
                           <input
                             type="checkbox"
                             checked={selectedStudents.has(student.uid)}
                             onChange={() => handleStudentSelect(student.uid)}
-                            className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-500 focus:ring-blue-500 cursor-pointer"
+                            className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                           />
                         </td>
                       )}
@@ -2093,6 +2353,7 @@ const AdminDashboard = () => {
                           <EyeIcon className="h-4 w-4" />
                           View Details
                         </button>
+
                       </td>
                       )}
                     </tr>
@@ -2352,6 +2613,166 @@ const AdminDashboard = () => {
                     )}
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* Pipeline Progress Modal (New) */}
+        {showPipelineModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-gray-900 rounded-lg shadow-xl max-w-5xl w-full max-h-[85vh] flex flex-col text-gray-100 font-mono">
+              <div className="p-4 border-b border-gray-700 flex justify-between items-center">
+                <h3 className="font-bold flex items-center gap-2">
+                  {(isNormalizing || isNormalizingEnglish) && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>}
+                  Pipeline Execution ({activePipelineLanguage})
+                </h3>
+                {!(isNormalizing || isNormalizingEnglish) && (
+                  <button onClick={() => setShowPipelineModal(false)} className="text-gray-400 hover:text-white">
+                    Close
+                  </button>
+                )}
+              </div>
+              
+              <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+                {/* Phase List & Controls */}
+                <div className="w-full md:w-1/3 border-r border-gray-700 overflow-y-auto p-2 bg-gray-800">
+                  {[0, 1, 2, 3, 4, 5, 6].map(phase => {
+                    const state = pipelineState[phase] || { status: 'pending', logs: '' };
+                    const labels = [
+                      "Data Normalizer", "Core Analysis", "Career Pathway", 
+                      "Career Matching", "AI Summaries", "Data Enrichment", "Report Generation"
+                    ];
+                    
+                    return (
+                      <div key={phase} className={`p-3 mb-2 rounded border ${
+                        state.status === 'running' ? 'border-blue-500 bg-blue-900/20' :
+                        state.status === 'success' ? 'border-green-600 bg-green-900/20' :
+                        state.status === 'error' ? 'border-red-600 bg-red-900/20' :
+                        'border-gray-700 bg-gray-800'
+                      }`}>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="font-bold text-sm">Phase {phase}</span>
+                          {state.status === 'running' && <span className="text-xs text-blue-400 animate-pulse">Running...</span>}
+                          {state.status === 'success' && <span className="text-xs text-green-400">Success</span>}
+                          {state.status === 'error' && <span className="text-xs text-red-400">Failed</span>}
+                        </div>
+                        <div className="text-xs text-gray-400 mb-2">{labels[phase]}</div>
+                        
+                        {/* Rerun Button */}
+                        {(state.status === 'success' || state.status === 'error') && !(isNormalizing || isNormalizingEnglish) && (
+                          <button 
+                            onClick={() => handleRerunPhase(phase)}
+                            className="w-full py-1 px-2 bg-gray-700 hover:bg-gray-600 rounded text-xs text-white transition-colors flex items-center justify-center gap-1"
+                          >
+                            <ArrowUpTrayIcon className="w-3 h-3" /> Rerun Phase
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Logs View */}
+                <div className="flex-1 p-4 overflow-y-auto whitespace-pre-wrap text-xs bg-black">
+                  {Object.keys(pipelineState).map(key => {
+                    const phase = parseInt(key);
+                    const logs = pipelineState[phase]?.logs;
+                    if (!logs) return null;
+                    return (
+                      <div key={phase} className="mb-4">
+                        {logs}
+                      </div>
+                    );
+                  })}
+                  {Object.keys(pipelineState).length === 0 && (
+                    <div className="text-gray-500 italic">Waiting to start pipeline...</div>
+                  )}
+                  
+                  {/* Generated Reports Section in Logs */}
+                  {generatedReports.length > 0 && (
+                    <div className="mt-8 pt-4 border-t border-gray-700">
+                      <h4 className="text-lg font-bold text-green-400 mb-4">Generated Reports</h4>
+                      <div className="grid gap-2">
+                        {generatedReports.map((report, idx) => (
+                          <div key={idx} className="bg-gray-800 p-3 rounded border border-gray-700 flex justify-between items-center">
+                            <div>
+                              <div className="font-bold text-white">{report.student_name}</div>
+                              <div className="text-xs text-gray-400">{report.filename}</div>
+                            </div>
+                            <a 
+                              href={`/api/admin/download-pdf?path=${encodeURIComponent(report.path)}`} 
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1 bg-indigo-600 text-white text-xs rounded hover:bg-indigo-500"
+                            >
+                              Download PDF
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {/* OMR Data Modal */}
+        {showOmrModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] flex flex-col">
+              <div className="p-6 border-b flex justify-between items-center">
+                <h2 className="text-xl font-bold text-gray-900">
+                  Master Sheet Preview ({omrData.length} records)
+                </h2>
+                <button
+                  onClick={() => setShowOmrModal(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <div className="p-6 overflow-auto flex-1">
+                <div className="mb-4 p-3 bg-blue-50 text-blue-700 rounded border border-blue-200 text-sm">
+                  <strong>Note:</strong> Raw data has been processed into the Master Sheet. Only the Master Sheet data is retained for report generation.
+                </div>
+                {omrData.length > 0 ? (
+                  <div className="bg-gray-900 rounded-lg p-4">
+                    <pre className="text-green-400 font-mono text-sm whitespace-pre-wrap">
+                      {JSON.stringify(omrData, null, 2)}
+                    </pre>
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-gray-500">
+                    <p>No data found in the uploaded file.</p>
+                  </div>
+                )}
+              </div>
+              
+              <div className="p-6 border-t bg-gray-50 flex justify-between items-center">
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => handleGenerateReports('english')}
+                    disabled={omrData.length === 0}
+                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Generate English Reports
+                  </button>
+                  <button
+                    onClick={() => handleGenerateReports('hindi')}
+                    disabled={omrData.length === 0}
+                    className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Generate Hindi Reports
+                  </button>
+                </div>
+                <button
+                  onClick={() => setShowOmrModal(false)}
+                  className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 font-medium transition-colors"
+                >
+                  Close
+                </button>
               </div>
             </div>
           </div>

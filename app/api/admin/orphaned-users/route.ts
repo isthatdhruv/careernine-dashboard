@@ -1,6 +1,20 @@
 import { NextResponse } from 'next/server';
-import { auth, db } from '@/lib/firebase-admin';
-import type { UserRecord } from 'firebase-admin/auth';
+import { cert, getApps, initializeApp } from 'firebase-admin/app';
+import { getAuth, UserRecord } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
+
+if (!getApps().length) {
+  initializeApp({
+    credential: cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    }),
+  });
+}
+
+const auth = getAuth();
+const firestore = getFirestore();
 
 const listAllAuthUsers = async (): Promise<UserRecord[]> => {
   const users: UserRecord[] = [];
@@ -19,7 +33,7 @@ const listAllAuthUsers = async (): Promise<UserRecord[]> => {
 export async function GET() {
   try {
     const authUsers = await listAllAuthUsers();
-    const firestoreSnapshot = await db.collection('users').get();
+    const firestoreSnapshot = await firestore.collection('users').get();
     const firestoreIds = new Set(firestoreSnapshot.docs.map((doc) => doc.id));
     const authIds = new Set(authUsers.map((user) => user.uid));
 
@@ -79,14 +93,14 @@ export async function DELETE(request: Request) {
     }
 
     if (target === 'firestore') {
-      await db.collection('users').doc(uid).delete();
+      await firestore.collection('users').doc(uid).delete();
       return NextResponse.json({ success: true, target: 'firestore' });
     }
 
     await auth.deleteUser(uid);
 
     try {
-      await db.collection('users').doc(uid).delete();
+      await firestore.collection('users').doc(uid).delete();
     } catch (firestoreError) {
       console.warn(`Failed to delete Firestore document for ${uid}:`, firestoreError);
     }

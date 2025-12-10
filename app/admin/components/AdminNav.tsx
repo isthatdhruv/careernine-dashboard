@@ -47,6 +47,18 @@ const AdminNav = () => {
               </Link>
               {isSuperAdminDomain && (
                 <Link
+                  href="/admin/reports"
+                  className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
+                    isActive('/admin/reports')
+                      ? 'border-blue-500 text-gray-900'
+                      : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                  }`}
+                >
+                  Reports
+                </Link>
+              )}
+              {isSuperAdminDomain && (
+                <Link
                   href="/admin/orphaned-users"
                   className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
                     isActive('/admin/orphaned-users')
@@ -65,4 +77,4 @@ const AdminNav = () => {
   );
 };
 
-export default AdminNav; 
+export default AdminNav;

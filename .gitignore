@@ -10,6 +10,21 @@
 !.yarn/releases
 !.yarn/versions
 
+report-gen-hindi/.venv/
+report-gen-hindi/ai_cache/
+report-gen-hindi/Reports/
+report-gen-hindi/graphs/
+report-gen-hindi/__pycache__/
+report-gen-hindi/ai_progress.csv
+
+report-gen-english/.venv/
+report-gen-english/ai_cache/
+report-gen-english/Reports/
+report-gen-english/graphs/
+report-gen-english/__pycache__/
+report-gen-english/ai_progress.csv
+
+
 # testing
 /coverage
 

@@ -67,6 +67,3 @@ if (require.main === module) {
 
 module.exports = { setTenantPassword };
 
-
-
-

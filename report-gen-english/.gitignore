@@ -1,0 +1,118 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Environment variables
+.env
+.env.local
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+temp_*.xlsx
+*_backup*.xlsx
+input.xlsx.backup*
+
+# Cache and progress tracking
+ai_cache/
+ai_progress.csv
+*.cache
+
+# Generated reports (large files)
+Reports/**/*.docx
+Reports/**/*.pdf
+Reports/**/PDFs/
+
+# Graphs (can be regenerated)
+graphs/
+
+# Input/output data files (too large for git)
+*.xlsx
+!requirements*.txt
+!Makefile
+
+# Keep templates but ignore large outputs
+!Templates/
+
+# Student data exports (sensitive, large)
+student_data_*.xlsx
+Varanasi*.xlsx
+Master_Sheet*.xlsx
+comprehensive_analysis.xlsx
+career_assessment_results.xlsx
+
+# Database files
+*.db
+
+# Logs
+*.log
+
+# Deletable/Unnecessary files and folders
+# Test and temporary Excel files
+~$*.xlsx
+dalimss_analysis.xlsx
+missing_sigra.xlsx
+missing_students.xlsx
+Dalimss_Online_Data.xlsx
+Online Data.xlsx
+
+# Project-specific folders (can be deleted)
+varanasi/
+Reports/Varanasi Reports/
+
+# Old backup scripts (can be deleted)
+backups/original_scripts/
+
+# Old templates (can be deleted)
+Templates/Original/
+
+# Cleanup script (temporary - can be added if needed)
+# cleanup_remaining.sh
+
+
+
+
+
+
+
+
+
+
+
+
+
+

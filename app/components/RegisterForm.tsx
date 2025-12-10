@@ -676,15 +676,15 @@ const RegisterForm = () => {
         
         // Create user data in Firestore
         const educationalData: Record<string, any> = {
-            school: formData.school,
-            schoolType: formData.schoolType,
-            studentClass: formData.studentClass,
-            fatherOccupation: formData.fatherOccupation,
-            motherOccupation: formData.motherOccupation,
-            topHighScoringSubjects: formData.topHighScoringSubjects,
-            activities: formData.activities,
-            awards: formData.awards,
-            hobbies: formData.hobbies,
+          school: formData.school,
+          schoolType: formData.schoolType,
+          studentClass: formData.studentClass,
+          fatherOccupation: formData.fatherOccupation,
+          motherOccupation: formData.motherOccupation,
+          topHighScoringSubjects: formData.topHighScoringSubjects,
+          activities: formData.activities,
+          awards: formData.awards,
+          hobbies: formData.hobbies,
         };
         if (formData.section) {
           educationalData.section = formData.section;
@@ -940,15 +940,15 @@ const RegisterForm = () => {
             
             // Create user data in Firestore
             const educationalData: Record<string, any> = {
-                school: formData.school,
-                schoolType: formData.schoolType,
-                studentClass: formData.studentClass,
-                fatherOccupation: formData.fatherOccupation,
-                motherOccupation: formData.motherOccupation,
-                topHighScoringSubjects: formData.topHighScoringSubjects,
-                activities: formData.activities,
-                awards: formData.awards,
-                hobbies: formData.hobbies,
+              school: formData.school,
+              schoolType: formData.schoolType,
+              studentClass: formData.studentClass,
+              fatherOccupation: formData.fatherOccupation,
+              motherOccupation: formData.motherOccupation,
+              topHighScoringSubjects: formData.topHighScoringSubjects,
+              activities: formData.activities,
+              awards: formData.awards,
+              hobbies: formData.hobbies,
             };
             if (formData.section) {
               educationalData.section = formData.section;
@@ -1165,9 +1165,9 @@ const RegisterForm = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-xl max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
             <div className="text-center mb-4">
-            <svg className="w-16 h-16 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
+              <svg className="w-16 h-16 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
               <h2 className="text-2xl font-bold text-gray-800 mb-2">{errorOverlay.title}</h2>
               <p className="text-gray-600 mb-4">{errorOverlay.message}</p>
             </div>

@@ -1,0 +1,6 @@
+timestamp,backup_file,description,student_count,student_hash,sheet_name,file_size_kb
+20251209_130319,input_backup_20251209_130319_33students.xlsx,before filtering new students,33,8f47eeb8ec8d,suitability_index,11.7333984375
+20251209_131611,master_sheet_backup_20251209_131611_33students.xlsx,after successful pipeline completion,33,8f47eeb8ec8d,Master_Sheet,274.5478515625
+20251209_152810,input_backup_20251209_152810_2students.xlsx,before filtering new students,2,4dda3719fbde,suitability_index,5.8798828125
+20251209_154407,input_backup_20251209_154407_2students.xlsx,before filtering new students,2,4dda3719fbde,suitability_index,5.8779296875
+20251209_154417,master_sheet_backup_20251209_154417_2students.xlsx,after successful pipeline completion,2,4dda3719fbde,Master_Sheet,17.2734375

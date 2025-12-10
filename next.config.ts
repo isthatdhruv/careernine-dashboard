@@ -1,35 +1,19 @@
-import type { NextConfig } from 'next';
+import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
-  serverExternalPackages: ['firebase-admin'],
   eslint: {
-    // Allows builds to complete even if ESLint errors exist.
+    // Warning: This allows production builds to successfully complete even if
+    // your project has ESLint errors.
     ignoreDuringBuilds: true,
   },
   typescript: {
-    // Allows builds to complete even if type errors exist.
+    // Warning: This allows production builds to successfully complete even if
+    // your project has type errors.
     ignoreBuildErrors: true,
-  },
-  webpack: (config) => {
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      'firebase-admin': false,
-    };
-    return config;
   },
   async rewrites() {
     return [
-      {
-        source: '/:path*',
-        destination: '/:path*',
-        has: [
-          {
-            type: 'host',
-            value: 'aspire.career-9.com',
-          },
-        ],
-      },
       {
         source: '/:path*',
         destination: '/:path*',
