@@ -1,0 +1,40 @@
+{
+  "issues": [
+    {
+      "type": "missing_values",
+      "details": [
+        {
+          "field": "Intelligence 3 Text",
+          "students": [
+            "Abhishek Tandiya"
+          ]
+        },
+        {
+          "field": "Intelligence 3 Image",
+          "students": [
+            "Abhishek Tandiya"
+          ]
+        },
+        {
+          "field": "Learning Style 3",
+          "students": [
+            "Abhishek Tandiya"
+          ]
+        },
+        {
+          "field": "Enjoys With 3",
+          "students": [
+            "Abhishek Tandiya"
+          ]
+        },
+        {
+          "field": "Struggles With 3",
+          "students": [
+            "Abhishek Tandiya"
+          ]
+        }
+      ]
+    }
+  ],
+  "rows": 34
+}

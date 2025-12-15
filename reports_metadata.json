@@ -1,12 +1,318 @@
 [
   {
-    "student_name": "R Laxmi Sarvani",
-    "filename": "R_Laxmi_Sarvani_Career-9_Stream_Navigator.html",
-    "path": "Reports/hindi/Harvest_Public_School/Class10/SectionA/R_Laxmi_Sarvani_Career-9_Stream_Navigator.html",
-    "school": "Harvest Public School",
-    "class": "10",
+    "student_name": "Akshay Khare",
+    "filename": "Akshay_Khare_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Akshay_Khare_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
     "language": "hindi",
-    "generatedAt": "2025-12-10T16:32:05.470Z"
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Anuj Jaiswal",
+    "filename": "Anuj_Jaiswal_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Anuj_Jaiswal_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Mandeep Ahirwar",
+    "filename": "Mandeep_Ahirwar_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Mandeep_Ahirwar_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Swati Choudhary",
+    "filename": "Swati_Choudhary_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Swati_Choudhary_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Aabhar Sahu",
+    "filename": "Aabhar_Sahu_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Aabhar_Sahu_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Aryan Dubey",
+    "filename": "Aryan_Dubey_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Aryan_Dubey_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Abhishek Thakur",
+    "filename": "Abhishek_Thakur_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Abhishek_Thakur_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Adarsh Viswakarma",
+    "filename": "Adarsh_Viswakarma_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Adarsh_Viswakarma_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Aditya A. Ahirwar",
+    "filename": "Aditya_A_Ahirwar_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Aditya_A_Ahirwar_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Ajeet Jaiswal",
+    "filename": "Ajeet_Jaiswal_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Ajeet_Jaiswal_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Anant Hiraskar",
+    "filename": "Anant_Hiraskar_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Anant_Hiraskar_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Arpita Shrivasa",
+    "filename": "Arpita_Shrivasa_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Arpita_Shrivasa_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Ashutosh Gouliya",
+    "filename": "Ashutosh_Gouliya_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Ashutosh_Gouliya_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Ayushman Madhukar",
+    "filename": "Ayushman_Madhukar_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Ayushman_Madhukar_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Aayush Vishwakarma",
+    "filename": "Aayush_Vishwakarma_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Aayush_Vishwakarma_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Hariom Shukla",
+    "filename": "Hariom_Shukla_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Hariom_Shukla_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Harshit Soni",
+    "filename": "Harshit_Soni_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Harshit_Soni_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Jay Yadav",
+    "filename": "Jay_Yadav_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Jay_Yadav_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Jitendra Prajapati",
+    "filename": "Jitendra_Prajapati_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Jitendra_Prajapati_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Kanhaiya Gupta",
+    "filename": "Kanhaiya_Gupta_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Kanhaiya_Gupta_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Kishan K. Singh",
+    "filename": "Kishan_K_Singh_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Kishan_K_Singh_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Nihal Solanki",
+    "filename": "Nihal_Solanki_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Nihal_Solanki_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Nishant Mehra",
+    "filename": "Nishant_Mehra_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Nishant_Mehra_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Nishant Sharma",
+    "filename": "Nishant_Sharma_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Nishant_Sharma_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Ritika Bakle",
+    "filename": "Ritika_Bakle_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Ritika_Bakle_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Sanju Yadav",
+    "filename": "Sanju_Yadav_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Sanju_Yadav_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Shiyam Jaiswal",
+    "filename": "Shiyam_Jaiswal_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Shiyam_Jaiswal_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Shivam Upadhyay",
+    "filename": "Shivam_Upadhyay_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Shivam_Upadhyay_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Shubam Netam",
+    "filename": "Shubam_Netam_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Shubam_Netam_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Vaibhav Patel",
+    "filename": "Vaibhav_Patel_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Vaibhav_Patel_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Vidaan Vishwakarma",
+    "filename": "Vidaan_Vishwakarma_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Vidaan_Vishwakarma_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Vikas Patel",
+    "filename": "Vikas_Patel_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Vikas_Patel_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Yogesh Verma",
+    "filename": "Yogesh_Verma_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/SSM_Jabalpur/Class12/SectionA/Yogesh_Verma_Career-9_Career_Navigator.html",
+    "school": "SSM Jabalpur",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-14T08:41:58.901Z"
+  },
+  {
+    "student_name": "Rishabh Aanand",
+    "filename": "Rishabh_Aanand_Career-9_Career_Navigator.html",
+    "path": "Reports/hindi/GGPS/Class12/SectionA/Rishabh_Aanand_Career-9_Career_Navigator.html",
+    "school": "GGPS",
+    "class": "12",
+    "language": "hindi",
+    "generatedAt": "2025-12-12T08:07:14.303Z"
+  },
+  {
+    "student_name": "Rishabh Aanand",
+    "filename": "Rishabh_Aanand_Career-9_Career_Navigator.html",
+    "path": "Reports/english/GGPS/Class12/SectionA/Rishabh_Aanand_Career-9_Career_Navigator.html",
+    "school": "GGPS",
+    "class": "12",
+    "language": "english",
+    "generatedAt": "2025-12-12T08:06:46.612Z"
   },
   {
     "student_name": "Eesha Singh K",
@@ -15,16 +321,7 @@
     "school": "Harvest Public School",
     "class": "9",
     "language": "hindi",
-    "generatedAt": "2025-12-10T16:32:05.470Z"
-  },
-  {
-    "student_name": "R Laxmi Sarvani",
-    "filename": "R_Laxmi_Sarvani_Career-9_Stream_Navigator.html",
-    "path": "Reports/english/Harvest_Public_School/Class10/SectionA/R_Laxmi_Sarvani_Career-9_Stream_Navigator.html",
-    "school": "Harvest Public School",
-    "class": "10",
-    "language": "english",
-    "generatedAt": "2025-12-10T16:31:23.570Z"
+    "generatedAt": "2025-12-12T08:04:57.634Z"
   },
   {
     "student_name": "Eesha Singh K",
@@ -33,96 +330,24 @@
     "school": "Harvest Public School",
     "class": "9",
     "language": "english",
-    "generatedAt": "2025-12-10T16:31:23.570Z"
+    "generatedAt": "2025-12-12T08:04:27.621Z"
   },
   {
-    "student_name": "Akshay Khare",
-    "filename": "Akshay_Khare_Career-9_Stream_Navigator.html",
-    "path": "Reports/english/SSM_Jabalpur/Class9/SectionA/Akshay_Khare_Career-9_Stream_Navigator.html",
-    "school": "SSM Jabalpur",
-    "class": "9",
-    "language": "english",
-    "generatedAt": "2025-12-10T16:30:44.362Z"
-  },
-  {
-    "student_name": "Anuj Jaiswal",
-    "filename": "Anuj_Jaiswal_Career-9_Stream_Navigator.html",
-    "path": "Reports/english/SSM_Jabalpur/Class9/SectionA/Anuj_Jaiswal_Career-9_Stream_Navigator.html",
-    "school": "SSM Jabalpur",
-    "class": "9",
-    "language": "english",
-    "generatedAt": "2025-12-10T16:30:44.362Z"
-  },
-  {
-    "student_name": "Mandeep Ahirwar",
-    "filename": "Mandeep_Ahirwar_Career-9_Stream_Navigator.html",
-    "path": "Reports/english/SSM_Jabalpur/Class9/SectionA/Mandeep_Ahirwar_Career-9_Stream_Navigator.html",
-    "school": "SSM Jabalpur",
-    "class": "9",
-    "language": "english",
-    "generatedAt": "2025-12-10T16:30:44.362Z"
-  },
-  {
-    "student_name": "Swati Choudhary",
-    "filename": "Swati_Choudhary_Career-9_Stream_Navigator.html",
-    "path": "Reports/english/SSM_Jabalpur/Class9/SectionA/Swati_Choudhary_Career-9_Stream_Navigator.html",
-    "school": "SSM Jabalpur",
-    "class": "9",
-    "language": "english",
-    "generatedAt": "2025-12-10T16:30:44.362Z"
-  },
-  {
-    "student_name": "Aabhar Sahu",
-    "filename": "Aabhar_Sahu_Career-9_Stream_Navigator.html",
-    "path": "Reports/english/SSM_Jabalpur/Class9/SectionA/Aabhar_Sahu_Career-9_Stream_Navigator.html",
-    "school": "SSM Jabalpur",
-    "class": "9",
-    "language": "english",
-    "generatedAt": "2025-12-10T16:30:44.362Z"
-  },
-  {
-    "student_name": "Akshay Khare",
-    "filename": "Akshay_Khare_Career-9_Stream_Navigator.html",
-    "path": "Reports/hindi/SSM_Jabalpur/Class9/SectionA/Akshay_Khare_Career-9_Stream_Navigator.html",
-    "school": "SSM Jabalpur",
-    "class": "9",
+    "student_name": "Vatsal Gupta",
+    "filename": "Vatsal_Gupta_Career-9_Insight_Navigator.html",
+    "path": "Reports/hindi/bhonsala_military_school/Class6/SectionA/Vatsal_Gupta_Career-9_Insight_Navigator.html",
+    "school": "bhonsala military school",
+    "class": "6",
     "language": "hindi",
-    "generatedAt": "2025-12-10T16:30:31.469Z"
+    "generatedAt": "2025-12-12T07:57:24.227Z"
   },
   {
-    "student_name": "Anuj Jaiswal",
-    "filename": "Anuj_Jaiswal_Career-9_Stream_Navigator.html",
-    "path": "Reports/hindi/SSM_Jabalpur/Class9/SectionA/Anuj_Jaiswal_Career-9_Stream_Navigator.html",
-    "school": "SSM Jabalpur",
-    "class": "9",
-    "language": "hindi",
-    "generatedAt": "2025-12-10T16:30:31.469Z"
-  },
-  {
-    "student_name": "Mandeep Ahirwar",
-    "filename": "Mandeep_Ahirwar_Career-9_Stream_Navigator.html",
-    "path": "Reports/hindi/SSM_Jabalpur/Class9/SectionA/Mandeep_Ahirwar_Career-9_Stream_Navigator.html",
-    "school": "SSM Jabalpur",
-    "class": "9",
-    "language": "hindi",
-    "generatedAt": "2025-12-10T16:30:31.469Z"
-  },
-  {
-    "student_name": "Swati Choudhary",
-    "filename": "Swati_Choudhary_Career-9_Stream_Navigator.html",
-    "path": "Reports/hindi/SSM_Jabalpur/Class9/SectionA/Swati_Choudhary_Career-9_Stream_Navigator.html",
-    "school": "SSM Jabalpur",
-    "class": "9",
-    "language": "hindi",
-    "generatedAt": "2025-12-10T16:30:31.469Z"
-  },
-  {
-    "student_name": "Aabhar Sahu",
-    "filename": "Aabhar_Sahu_Career-9_Stream_Navigator.html",
-    "path": "Reports/hindi/SSM_Jabalpur/Class9/SectionA/Aabhar_Sahu_Career-9_Stream_Navigator.html",
-    "school": "SSM Jabalpur",
-    "class": "9",
-    "language": "hindi",
-    "generatedAt": "2025-12-10T16:30:31.469Z"
+    "student_name": "Vatsal Gupta",
+    "filename": "Vatsal_Gupta_Career-9_Insight_Navigator.html",
+    "path": "Reports/english/bhonsala_military_school/Class6/SectionA/Vatsal_Gupta_Career-9_Insight_Navigator.html",
+    "school": "bhonsala military school",
+    "class": "6",
+    "language": "english",
+    "generatedAt": "2025-12-12T07:42:18.337Z"
   }
 ]

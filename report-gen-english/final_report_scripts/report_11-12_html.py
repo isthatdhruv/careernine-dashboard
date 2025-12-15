@@ -7,6 +7,7 @@ from jinja2 import Environment, FileSystemLoader
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from datetime import datetime
+import json
 
 # Add parent directory to path to import utils if needed
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -20,9 +21,8 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-logging.info("Starting the HTML report generation process.")
+logging.info("Starting the Class 11-12 HTML report generation process.")
 
-# -------------------------------
 # -------------------------------
 # Configuration
 # -------------------------------
@@ -32,27 +32,20 @@ PROJECT_ROOT = os.path.dirname(SCRIPT_DIR) # report-gen
 
 # Robust path to templates
 TEMPLATE_DIR = os.path.join(PROJECT_ROOT, "Templates", "HTML Templates")
-TEMPLATE_FILE = "9-10.html"
+TEMPLATE_FILE = "11-12.html"
 
 # Robust path to input.xlsx
 EXCEL_PATH = os.path.join(PROJECT_ROOT, "input.xlsx")
 
 SHEET_NAME = "Master_Sheet"
-OUTPUT_DIR = "../Reports/hindi"
-GRAPH_PERSONALITY_DIR = "../graphs/class_9-10/personality"
-GRAPH_INTELLIGENCE_DIR = "../graphs/class_9-10/intelligence"
+OUTPUT_DIR = "../Reports/english"
+GRAPH_PERSONALITY_DIR = "../graphs/class_11-12/personality"
+GRAPH_INTELLIGENCE_DIR = "../graphs/class_11-12/intelligence"
 
 # Create necessary directories
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs(GRAPH_PERSONALITY_DIR, exist_ok=True)
 os.makedirs(GRAPH_INTELLIGENCE_DIR, exist_ok=True)
-
-# -------------------------------
-# Asset Management
-# -------------------------------
-import json
-
-# ... (imports remain the same)
 
 # -------------------------------
 # Asset Management
@@ -96,10 +89,9 @@ def create_personality_graph(student_name, scores, categories):
     graph_filename = f"personality_graph_{safe_name}.png"
     graph_path = os.path.join(GRAPH_PERSONALITY_DIR, graph_filename)
     
-    # Force regeneration - do not check if exists
+    # Force regeneration
     
     fig, ax = plt.subplots(figsize=(6.9, 2))
-    # ... (rest of graph generation logic)
     
     # Define gradient colors
     base_color = "#0096c7"  # Teal blue
@@ -152,12 +144,11 @@ def create_intelligence_graph(student_name, scores, categories):
     graph_filename = f"intelligence_graph_{safe_name}.png"
     graph_path = os.path.join(GRAPH_INTELLIGENCE_DIR, graph_filename)
 
-    # Force regeneration - do not check if exists
+    # Force regeneration
 
     fig, ax = plt.subplots(figsize=(6.9, 2))
-    # ... (rest of graph generation logic)
 
-    # Define gradient colors for intelligence graph (different from personality)
+    # Define gradient colors for intelligence graph
     base_color = "#0096c7"  # Teal blue
     lighter_color = "#a8e6ff"  # Light cyan
 
@@ -205,8 +196,6 @@ def format_recommendations(text):
 # -------------------------------
 # Processing Loop
 # -------------------------------
-# Processing Loop
-# -------------------------------
 env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
 template = env.get_template(TEMPLATE_FILE)
 
@@ -219,7 +208,8 @@ generated_reports = []
 for index, row in data.iterrows():
     student_name = row.get("Name", "Unknown")
     
-    if row.get("Class") not in [9, 10]:
+    # Filter for Class 11 and 12
+    if row.get("Class") not in [11, 12]:
         continue
 
     try:
@@ -291,8 +281,6 @@ for index, row in data.iterrows():
             report_dir = OUTPUT_DIR
 
         # Calculate relative paths for graphs
-        # report_dir is absolute or relative to cwd. p_graph_path is relative to cwd.
-        # We need p_graph_path relative to report_dir.
         rel_p_graph = os.path.relpath(p_graph_path, report_dir)
         rel_i_graph = os.path.relpath(i_graph_path, report_dir)
 
@@ -319,7 +307,7 @@ for index, row in data.iterrows():
             "intelligence_1_image": f'<img src="images/{row.get("Intelligence 1 Image", "")}" style="width: 100px;">' if row.get("Intelligence 1 Image") else "",
             "intelligence_2_image": f'<img src="images/{row.get("Intelligence 2 Image", "")}" style="width: 100px;">' if row.get("Intelligence 2 Image") else "",
             "intelligence_3_image": f'<img src="images/{row.get("Intelligence 3 Image", "")}" style="width: 100px;">' if row.get("Intelligence 3 Image") else "",
-
+            
             "intelligence_1_text": row.get("Intelligence 1 Text", ""),
             "intelligence_2_text": row.get("Intelligence 2 Text", ""),
             "intelligence_3_text": row.get("Intelligence 3 Text", ""),
@@ -426,7 +414,7 @@ for index, row in data.iterrows():
         html_content = template.render(context)
         filename = build_report_filename(
             student_name,
-            suffix="Career-9_Stream Navigator",
+            suffix="Career-9_Career Navigator",
             roll_number=row.get("Roll Number", ""),
             uid=row.get("UID", ""),
             extension=".html"
@@ -438,9 +426,6 @@ for index, row in data.iterrows():
             
         logging.info(f"Generated HTML report for {student_name} at {output_path}")
         
-        # Add to generated list (relative path for API)
-        # We want path relative to project root or report-gen root?
-        # The API will need to serve it. Let's store relative to report-gen root.
         rel_path = os.path.relpath(output_path, start=PROJECT_ROOT)
         generated_reports.append({
             "student_name": student_name,
@@ -457,5 +442,5 @@ for index, row in data.iterrows():
     except Exception as e:
         logging.error(f"Error processing record {index + 1} for {student_name}: {e}")
 
-# Output JSON result for the orchestrator/API to pick up
+# Output JSON result
 print(f"JSON_RESULT:{json.dumps(generated_reports)}")

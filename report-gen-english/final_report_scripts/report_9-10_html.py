@@ -419,6 +419,7 @@ for index, row in data.iterrows():
             "can_at_home": row.get("Future Suggestions At Home", ""),
             "recommendations": format_recommendations(row.get("Recommendations", "")),
             "weak_ability": row.get("Weak_Ability", ""),
+            "result": row.get("Career_Match_Result", ""),
         }
 
         # Render HTML

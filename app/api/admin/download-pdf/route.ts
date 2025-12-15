@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
-import puppeteer from 'puppeteer';
+import { generatePdfFromHtml } from '@/utils/pdfGenerator';
 
 export async function GET(req: NextRequest) {
   try {
@@ -69,32 +69,8 @@ export async function GET(req: NextRequest) {
        return NextResponse.json({ error: 'File not found' }, { status: 404 });
     }
 
-    // Read HTML content
-    const htmlContent = await fs.readFile(fullPath, 'utf-8');
-
-    // Launch Puppeteer
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'], // Required for some environments
-    });
-    const page = await browser.newPage();
-
-    const fileUrl = `file://${fullPath}`;
-    await page.goto(fileUrl, { waitUntil: 'networkidle0' });
-
-    // Generate PDF
-    const pdfBuffer = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: {
-        top: '10mm',
-        right: '10mm',
-        bottom: '10mm',
-        left: '10mm',
-      },
-    });
-
-    await browser.close();
+    // Generate PDF using shared utility
+    const pdfBuffer = await generatePdfFromHtml(fullPath);
 
     // Return PDF
     const filename = path.basename(fullPath, '.html') + '.pdf';

@@ -1,11 +1,5 @@
 {
   "compilerOptions": {
-    "baseUrl": ".", 
-    "paths": {
-      "@/*": [
-        "./app/*"
-      ]
-    },
     "target": "ES2017",
     "lib": [
       "dom",
@@ -15,8 +9,7 @@
     "allowJs": true,
     "skipLibCheck": true,
     "strict": false,
-    "noEmit": false,
-    "outDir": "dist",
+    "noEmit": true,
     "incremental": true,
     "module": "esnext",
     "esModuleInterop": true,
@@ -28,7 +21,11 @@
       {
         "name": "next"
       }
-    ]
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    }
   },
   "include": [
     "next-env.d.ts",

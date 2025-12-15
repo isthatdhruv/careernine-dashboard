@@ -149,7 +149,7 @@
             <div
                 style="position: absolute; top: 20%; transform: translateY(-50%); right: 0; width: 60%; text-align: right; padding-right: 10mm;  padding: 20px; color: white; z-index: 10;">
                 <h1 style="font-size: 32pt; color: white; margin: 0; text-transform: uppercase;">{{ f_name }}’s</h1>
-                <h2 style="font-size: 24pt; color: white; font-weight: 300; margin: 0;">STREAM</h2>
+                <h2 style="font-size: 24pt; color: white; font-weight: 300; margin: 0;">INSIGHT</h2>
                 <h2 style="font-size: 24pt; color: white; font-weight: 300; margin: 0;">NAVIGATOR</h2>
                 <h2 style="font-size: 24pt; color: white; font-weight: 300; margin: 0;">REPORT</h2>
             </div>
@@ -262,7 +262,7 @@
     </div>
     <div class="page content-padding">
         <div class="section-header" style="margin-top: 30px;">{{ f_name }}’s Profile:</div>
-        <p>Your Innate Attributes comprise of <strong>Personality</strong> and <strong>Intelligence</strong>. These attributes
+        <p>Your Innate Attributes comprise of Personality and Intelligence. These attributes
             are then aligned with your preferences to identify the most suitable career
             options for you.
         </p>
@@ -313,10 +313,10 @@
             <img src="{{ intelligence_graph }}" style="width: 100%; max-height: 250px;" alt="Intelligence Chart">
         </div>
 
-        <p class="text-justify" style="font-size: 12pt;"><strong>Intelligence</strong> is the vibrant energy that fuels our curiosity and
+        <p class="text-justify" style="font-size: 12pt;">Intelligence is the vibrant energy that fuels our curiosity and
             drives our quest for
             knowledge. It shapes how we absorb and process new information, tailoring a learning style that's as unique
-            as our fingerprints. <strong>Your top three intelligence types are:</strong></p>
+            as our fingerprints. Your top three intelligence types are:</p>
 
         <!-- Top 3 Intelligences List -->
         <div style="margin-top: 20px;">
@@ -436,19 +436,6 @@
             <li>{{ values_2 }}</li>
             <li>{{ values_3 }}</li>
             <li>{{ values_4 }}</li>
-        </ul>
-
-        <div
-            style="background: linear-gradient(to right, #e3f2fd, #bbdefb); padding: 5px 10px; font-size: 15pt; font-weight: bold;">
-            Career Aspirations</div>
-        <p style="font-size: 12pt; margin-top: 20px;">Career Aspiration is a long-term professional goal that you aim to
-            achieve in your future career path, based
-            on your interest and strengths.</p>
-        <ul style="margin: 10px 0 20px 20px; font-size: 12pt;">
-            <li>{{ career_asp_1 }}</li>
-            <li>{{ career_asp_2 }}</li>
-            <li>{{ career_asp_3 }}</li>
-            <li>{{ career_asp_4 }}</li>
         </ul>
     </div>
 
@@ -674,21 +661,7 @@ your potential can take you!</p>
                 </div>
             </div>
 
-            <!-- Column 3: Professional Courses -->
-            <div style="flex: 1; display: flex; flex-direction: column;">
-                <div style="background: linear-gradient(to right, #a5d6a7, #4dd0e1); padding: 10px; text-align: center; color: #333; font-weight: bold; border-top-left-radius: 5px; border-top-right-radius: 5px;">Professional Courses</div>
-                <div style="border: 2px solid #00bcd4; padding: 10px; font-size: 10pt; flex: 1;">
-                    {{ cp1_courses }}
-                </div>
-            </div>
-
-            <!-- Column 4: Exams -->
-            <div style="flex: 1; display: flex; flex-direction: column;">
-                <div style="background: linear-gradient(to right, #a5d6a7, #4dd0e1); padding: 10px; text-align: center; color: #333; font-weight: bold; border-top-left-radius: 5px; border-top-right-radius: 5px;">Exams</div>
-                <div style="border: 2px solid #00bcd4; padding: 10px; font-size: 10pt; flex: 1;">
-                    {{ cp1_exams }}
-                </div>
-            </div>
+            
         </div>
     </div>
 
@@ -804,22 +777,6 @@ your potential can take you!</p>
                 <div style="background: linear-gradient(to right, #a5d6a7, #4dd0e1); padding: 10px; text-align: center; color: #333; font-weight: bold; border-top-left-radius: 5px; border-top-right-radius: 5px;">Skills</div>
                 <div style="border: 2px solid #00bcd4; padding: 10px; font-size: 10pt; flex: 1;">
                     {{ cp2_skills }}
-                </div>
-            </div>
-
-            <!-- Column 3: Professional Courses -->
-            <div style="flex: 1; display: flex; flex-direction: column;">
-                <div style="background: linear-gradient(to right, #a5d6a7, #4dd0e1); padding: 10px; text-align: center; color: #333; font-weight: bold; border-top-left-radius: 5px; border-top-right-radius: 5px;">Professional Courses</div>
-                <div style="border: 2px solid #00bcd4; padding: 10px; font-size: 10pt; flex: 1;">
-                    {{ cp2_courses }}
-                </div>
-            </div>
-
-            <!-- Column 4: Exams -->
-            <div style="flex: 1; display: flex; flex-direction: column;">
-                <div style="background: linear-gradient(to right, #a5d6a7, #4dd0e1); padding: 10px; text-align: center; color: #333; font-weight: bold; border-top-left-radius: 5px; border-top-right-radius: 5px;">Exams</div>
-                <div style="border: 2px solid #00bcd4; padding: 10px; font-size: 10pt; flex: 1;">
-                    {{ cp2_exams }}
                 </div>
             </div>
         </div>
@@ -938,22 +895,6 @@ your potential can take you!</p>
                     {{ cp3_skills }}
                 </div>
             </div>
-
-            <!-- Column 3: Professional Courses -->
-            <div style="flex: 1; display: flex; flex-direction: column;">
-                <div style="background: linear-gradient(to right, #a5d6a7, #4dd0e1); padding: 10px; text-align: center; color: #333; font-weight: bold; border-top-left-radius: 5px; border-top-right-radius: 5px;">Professional Courses</div>
-                <div style="border: 2px solid #00bcd4; padding: 10px; font-size: 10pt; flex: 1;">
-                    {{ cp3_courses }}
-                </div>
-            </div>
-
-            <!-- Column 4: Exams -->
-            <div style="flex: 1; display: flex; flex-direction: column;">
-                <div style="background: linear-gradient(to right, #a5d6a7, #4dd0e1); padding: 10px; text-align: center; color: #333; font-weight: bold; border-top-left-radius: 5px; border-top-right-radius: 5px;">Exams</div>
-                <div style="border: 2px solid #00bcd4; padding: 10px; font-size: 10pt; flex: 1;">
-                    {{ cp3_exams }}
-                </div>
-            </div>
         </div>
     </div>
 
@@ -994,69 +935,32 @@ clothing or food, try each of them and make a note of what suits you the best</p
             but also prepare you for real-life challenges...</p>
     </div>
 
-    <!-- ================= PAGE 12: ASPIRATIONS COMPARISON ================= -->
-    <div class="page content-padding">
-        <div class="section-header">Which Career pathways align to your aspirations?</div>
-        <p class="text-justify">NAVIGATOR 360 has crunched the numbers, aligning your unique personality and
-intelligence with your skills and values to unveil the top three career paths where
-you'll shine. Now let’s compare your aspirations with your most suited career paths.</p>
-
-        <div style="display: flex; justify-content: space-around; margin-top: 40px;">
-            <!-- Column 1: Aspirations -->
-            <div style="width: 45%; text-align: center;">
-                <div
-                    style="background: linear-gradient(to right, #80cbc4, #26a69a); padding: 10px; color: white; font-weight: bold;">
-                    {{ name_caps }}’S ASPIRATIONS</div>
-                <div
-                    style="border: 2px solid #80cbc4; padding: 15px; display: flex; flex-direction: column; gap: 10px;">
-                    <div style="border: 1px solid #26a69a; padding: 8px;">{{ career_asp_1 }}</div>
-                    <div style="border: 1px solid #26a69a; padding: 8px;">{{ career_asp_2 }}</div>
-                    <div style="border: 1px solid #26a69a; padding: 8px;">{{ career_asp_3 }}</div>
-                    <div style="border: 1px solid #26a69a; padding: 8px;">{{ career_asp_4 }}</div>
-                </div>
-            </div>
-
-            <!-- Column 2: Career Pathways -->
-            <div style="width: 45%; text-align: center;">
-                <div
-                    style="background: linear-gradient(to right, #81d4fa, #29b6f6); padding: 10px; color: white; font-weight: bold;">
-                    {{ name_caps }}’S CAREER PATHWAYS</div>
-                <div
-                    style="border: 2px solid #81d4fa; padding: 15px; display: flex; flex-direction: column; gap: 10px;">
-                    <div style="border: 1px solid #29b6f6; padding: 8px;">{{ pathway_1 }}</div>
-                    <div style="border: 1px solid #29b6f6; padding: 8px;">{{ pathway_2 }}</div>
-                    <div style="border: 1px solid #29b6f6; padding: 8px;">{{ pathway_3 }}</div>
-                </div>
-            </div>
-        </div>
-
-        <p class="text-justify" style="margin-top: 40px;">{{ result }}</p>
-    </div>
+    
 
     <!-- ================= PAGE 13: FAQ ================= -->
     <div class="page content-padding">
         <div class="section-header">Frequently Asked Questions</div>
 
         <div style="margin-bottom: 20px;">
-            <div style="font-weight: bold; margin-bottom: 5px; font-size: 15pt;">&#10003; What if my pathway does not match with my subject knowledge?</div>
+            <div style="font-weight: bold; margin-bottom: 5px;">&#10003; What if my pathway does not match with my subject knowledge?</div>
             <p class="text-justify" style="font-size: 13pt; color: #555;">{{ f_name }}, there can be various reasons for a lack of subject knowledge in one's aspired career. It could be due to a rapid pace of technological advancements outpacing one's current knowledge, or even a lack of exposure to relevant career activities that build such knowledge. Additionally, self-efficacy, which is the belief in one's ability to succeed, plays a significant role. Studies have shown that individuals with higher self-efficacy are more likely to acquire and apply career-related knowledge effectively. Therefore, addressing these factors through targeted education, training, and confidence-building activities can help bridge the knowledge gap.
             </p>
         </div>
 
         <div style="margin-bottom: 20px;">
-            <div style="font-weight: bold; margin-bottom: 5px; font-size: 15pt;">&#10003; What if my pathway does not match with ability?</div>
+            <div style="font-weight: bold; margin-bottom: 5px;">&#10003; What if my pathway does not match with ability?</div>
             <p class="text-justify" style="font-size: 13pt; color: #555;">Common factors include a mismatch of skills, lack of exposure, or not having a clear understanding of the career's requirements. It's important to assess one's strengths and weaknesses, seek feedback, and consider additional training or education. Sometimes, it's also about gaining more hands-on experience or finding a mentor to guide you through the industry. Remember, career paths are rarely linear, and it's never too late to acquire new skills or change direction.
             </p>
         </div>
 
         <div style="margin-bottom: 20px;">
-            <div style="font-weight: bold; margin-bottom: 5px; font-size: 15pt;">&#10003; What if my pathway does not match with my
+            <div style="font-weight: bold; margin-bottom: 5px;">&#10003; What if my pathway does not match with my
                 values?</div>
             <p class="text-justify" style="font-size: 13pt; color: #555;">Sometimes, a lack of clarity about personal values or how they can influence professional environment can lead to uncertainty in career direction. It's important to reflect on what you find meaningful and fulfilling, whether it's materialistic achievements, people-oriented needs, making a positive societal impact, or seeking a sense of purpose. Understanding these core values can guide you towards a career that resonates with your beliefs and goals. If you're experiencing a disconnect, it might be beneficial to explore various aspects of your life and career to pinpoint values that are truly important to you.</p>
         </div>
 
         <div style="margin-bottom: 20px;">
-            <div style="font-weight: bold; margin-bottom: 5px; font-size: 15pt;">&#10003; What if there is no dominant personality trait?
+            <div style="font-weight: bold; margin-bottom: 5px;">&#10003; What if there is no dominant personality trait?
             </div>
             <p class="text-justify" style="font-size: 13pt; color: #555;">Don’t worry! not having a dominant personality trait can be due to various factors. One possible reason could be that you may exhibit ‘traits’ from ‘multiple traits’ which are not fully explored, which makes a single category less definitive. Additionally, cultural and environmental factors can influence your preferences, which the model might not fully account for. Or sometimes there are other personal or mental health challenges that make it difficult to shine in one area.</p>
         </div>

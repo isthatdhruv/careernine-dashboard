@@ -29,7 +29,9 @@ print("Verifying prerequisites...")
 
 # Check templates exist
 templates = {
+    '6-8': 'Templates/HTML Templates/6-8.html',
     '9-10': 'Templates/HTML Templates/9-10.html',
+    '11-12': 'Templates/HTML Templates/11-12.html',
 }
 
 for class_group, template_path in templates.items():
@@ -43,7 +45,9 @@ for class_group, template_path in templates.items():
 
 # Check report scripts exist
 report_scripts = {
+    '6-8': 'final_report_scripts/report_6-8_html.py',
     '9-10': 'final_report_scripts/report_9-10_html.py',
+    '11-12': 'final_report_scripts/report_11-12_html.py',
 }
 
 for class_group, script_path in report_scripts.items():
@@ -68,21 +72,31 @@ print(f"  ✅ Master_Sheet loaded: {len(df)} students")
 print("\nCategorizing students by class group...")
 
 students_by_group = {
+    '6-8': [],
     '9-10': [],
+    '11-12': [],
 }
 
 for idx, row in df.iterrows():
     name = row['Name']
     class_num = row['Class']
     
-    if class_num in [9, 10]:
+    if class_num in [6, 7, 8]:
+        students_by_group['6-8'].append(name)
+        print(f"  {name} (Class {class_num}) → 6-8 group")
+    elif class_num in [9, 10]:
         students_by_group['9-10'].append(name)
         print(f"  {name} (Class {class_num}) → 9-10 group")
+    elif class_num in [11, 12]:
+        students_by_group['11-12'].append(name)
+        print(f"  {name} (Class {class_num}) → 11-12 group")
     else:
-        print(f"  ⚠️ {name} (Class {class_num}) → Skipped (Only Class 9-10 HTML Supported)")
+        print(f"  ⚠️ {name} (Class {class_num}) → Skipped (Only Class 6-8, 9-10 & 11-12 HTML Supported)")
 
 print()
+print(f"  Class 6-8: {len(students_by_group['6-8'])} students")
 print(f"  Class 9-10: {len(students_by_group['9-10'])} students")
+print(f"  Class 11-12: {len(students_by_group['11-12'])} students")
 
 # ============================================================================
 # GENERATE REPORTS
@@ -101,8 +115,12 @@ for class_group, students in students_by_group.items():
         continue
     
     script_path = report_scripts[class_group]
-    if class_group == "9-10":
+    if class_group == "6-8":
+        report_type = "Insight Navigator (HTML)"
+    elif class_group == "9-10":
         report_type = "Stream Navigator (HTML)"
+    elif class_group == "11-12":
+        report_type = "Career Navigator (HTML)"
     else:
         report_type = "Unknown"
     
