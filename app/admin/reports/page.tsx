@@ -8,7 +8,8 @@ import {
   ArrowDownTrayIcon, 
   EyeIcon,
   LanguageIcon,
-  TrashIcon
+  TrashIcon,
+  CloudArrowUpIcon
 } from '@heroicons/react/24/outline';
 
 // --- Types ---
@@ -261,6 +262,7 @@ export default function ReportsPage() {
   const [loadingReports, setLoadingReports] = useState(false);
   const [selectedReports, setSelectedReports] = useState<Set<string>>(new Set());
   const [isDownloadingBatch, setIsDownloadingBatch] = useState(false);
+  const [isUploadingToDrive, setIsUploadingToDrive] = useState(false);
   
   // OMR State
   const [showOmrModal, setShowOmrModal] = useState(false);
@@ -492,6 +494,59 @@ export default function ReportsPage() {
     }
   };
 
+  // Drive Upload Handler
+  const handleDriveUpload = async () => {
+    if (selectedReports.size === 0) return;
+    
+    const folderName = prompt("Enter a name for the Google Drive folder:", `Reports_Batch_${new Date().toISOString().split('T')[0]}`);
+    if (folderName === null) return; // User cancelled
+
+    const parentFolderId = prompt("Enter Parent Folder ID (Optional - leave empty for root):", "");
+
+    setIsUploadingToDrive(true);
+
+    try {
+      const reportPaths = Array.from(selectedReports);
+      const res = await fetch('/api/admin/upload-to-drive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reportPaths, folderName, parentFolderId }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) throw new Error(result.error || 'Failed to upload to Drive');
+
+      if (result.success && result.folderUrl) {
+        // Check for partial failures
+        const errors = result.results.filter((r: any) => r.status === 'error');
+        if (errors.length > 0) {
+          const quotaError = errors.find((r: any) => r.error && r.error.includes('QUOTA_ERROR'));
+          if (quotaError) {
+             alert(quotaError.error);
+          } else {
+             alert(`Upload completed with some errors. Check console for details.`);
+          }
+        }
+        
+        // Show success message with link (using a simple alert for now, or could be a modal)
+        // A prompt is useful here so user can copy the link easily
+        prompt("Upload Process Finished! Copy the Google Drive Folder Link below:", result.folderUrl);
+        
+        // Clear selection
+        setSelectedReports(new Set());
+      } else {
+        alert("Upload completed but no folder link returned.");
+      }
+
+    } catch (error: any) {
+      console.error('Drive upload failed:', error);
+      alert(`Failed to upload to Drive: ${error.message}`);
+    } finally {
+      setIsUploadingToDrive(false);
+    }
+  };
+
   const toggleReportSelection = (path: string) => {
     const newSelected = new Set(selectedReports);
     if (newSelected.has(path)) {
@@ -586,6 +641,25 @@ export default function ReportsPage() {
                   <>
                     <ArrowDownTrayIcon className="w-4 h-4 mr-1" />
                     Download Selected ({selectedReports.size})
+                  </>
+                )}
+              </button>
+            )}
+            {selectedReports.size > 0 && (
+              <button 
+                onClick={handleDriveUpload}
+                disabled={isUploadingToDrive}
+                className="flex items-center px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                {isUploadingToDrive ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Uploading...
+                  </>
+                ) : (
+                  <>
+                    <CloudArrowUpIcon className="w-4 h-4 mr-1" />
+                    Upload to Drive
                   </>
                 )}
               </button>

@@ -59,7 +59,8 @@ next-env.d.ts
 # Firebase
 .firebase/
 firebase-service-account.json
-serviceAccountKey.json
+ServiceAccountKey.json
+service-account.json
 
 # Ignore specific API routes
 app/api/ability-detailed
