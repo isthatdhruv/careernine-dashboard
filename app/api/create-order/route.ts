@@ -1,7 +1,7 @@
 // app/api/create-order/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import Razorpay from 'razorpay';
-import { db } from '@/lib/firebaseAdmin';
+import { db } from '@/app/lib/firebaseAdmin';
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID!,

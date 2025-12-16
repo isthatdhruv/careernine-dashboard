@@ -2,7 +2,7 @@
 
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, updateDoc, collection, getDocs, query, where, addDoc, onSnapshot } from 'firebase/firestore';
@@ -307,7 +307,7 @@ const Dashboard = () => {
       }
       unsubscribeAuth();
     };
-  }, []); // Remove router from dependencies - it's stable in Next.js
+  }, [router]);
 
   // Modify the payment check logic
   useEffect(() => {
@@ -432,7 +432,7 @@ const Dashboard = () => {
   };
 
   // Check if appointment data is valid
-  const hasValidAppointment = () => {
+  const hasValidAppointment = useCallback(() => {
     if (!userData?.counselingAppointment) return false;
     
     // Check if appointmentURI exists
@@ -452,7 +452,7 @@ const Dashboard = () => {
     }
     
     return true; // If we have URI but no timestamp, assume it's valid
-  };
+  }, [userData]);
 
   // Fetch appointments from Calendly API
   useEffect(() => {
@@ -483,7 +483,7 @@ const Dashboard = () => {
     if (userData && (!hasValidAppointment() || !userData.counselingAppointment)) {
       fetchCalendlyMeetings();
     }
-  }, [userData]);
+  }, [userData, hasValidAppointment]);
 
   // Fetch appointment details from Calendly API
   useEffect(() => {
@@ -517,7 +517,7 @@ const Dashboard = () => {
     if (userData?.counselingAppointment?.appointmentURI) {
       fetchAppointmentDetails();
     }
-  }, [userData]);
+  }, [userData, hasValidAppointment]);
 
   const loadRazorpayScript = () => {
     return new Promise((resolve) => {

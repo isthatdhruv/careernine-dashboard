@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/firebase-admin';
+import { db } from '@/firebase-admin';
 import * as XLSX from 'xlsx';
 
 export async function GET(request: NextRequest) {

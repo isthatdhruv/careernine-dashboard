@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { db } from '../../firebase';
 import { collection, getDocs, query, where, deleteDoc, doc, orderBy } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
@@ -353,6 +353,19 @@ function generateMasterSheetData(rawValues: any[][]): any[] {
 }
 
 
+
+const getAssessmentStatus = (student: StudentData) => {
+  const completedQuizzes = Object.values(student.cardsStatus || {}).filter(Boolean).length;
+  const requiredQuizzes = Number(student.educational.studentClass) >= 9 ? 6 : 5;
+  const adjustedCompletedQuizzes = Number(student.educational.studentClass) < 9 && student.cardsStatus?.careerAspirations 
+    ? completedQuizzes - 1 
+    : completedQuizzes;
+  
+  if (adjustedCompletedQuizzes === requiredQuizzes) return 'Completed';
+  if (adjustedCompletedQuizzes > 0) return 'In Progress';
+  return 'Not Started';
+};
+
 const AdminDashboard = () => {
   const [loading, setLoading] = useState(false); // Start as false to show dashboard immediately
   const [refreshing, setRefreshing] = useState(false); // Separate state for refresh button
@@ -397,6 +410,8 @@ const AdminDashboard = () => {
   const [chartTenantFilter, setChartTenantFilter] = useState<string>('all');
   const [chartClassFilter, setChartClassFilter] = useState<string>('all');
   const [availableTenants, setAvailableTenants] = useState<string[]>([]);
+  const [registrationGranularity, setRegistrationGranularity] = useState<'month' | 'week' | 'day'>('month');
+  const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: '', to: '' });
   
   // Collapsible filter states
   const [showDataFilters, setShowDataFilters] = useState<boolean>(false);
@@ -414,120 +429,7 @@ const AdminDashboard = () => {
     setTimeout(() => setCopyStatus(''), 2000);
   };
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    try {
-      await fetchStudents();
-      setLastRefreshTime(new Date());
-    } catch (error) {
-      console.error('Error refreshing data:', error);
-    } finally {
-      setRefreshing(false);
-    }
-  };
-
-  // Fetch tenant configuration
-  useEffect(() => {
-    const fetchTenantConfig = async () => {
-      try {
-        const config = await getTenantConfig(currentTenant || 'default');
-        setTenantConfig(config);
-      } catch (error) {
-        console.error('Error fetching tenant config:', error);
-      }
-    };
-    fetchTenantConfig();
-  }, [currentTenant]);
-
-  useEffect(() => {
-    const isAdminAuthenticated = localStorage.getItem('adminAuthenticated');
-    if (isAdminAuthenticated === 'true') {
-      setAuthenticated(true);
-      // Fetch data in background without blocking UI
-      fetchStudents().then(() => {
-        setLastRefreshTime(new Date());
-      });
-    }
-  }, []);
-
-
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    let loginSuccess = false;
-    
-    // Get password from tenant config (Firestore) or fallback to hardcoded passwords
-    const getPasswordForTenant = (): string | null => {
-      // First, try to get password from Firestore tenant config
-      if (tenantConfig?.settings?.adminPassword) {
-        return tenantConfig.settings.adminPassword;
-      }
-      
-      // Fallback to hardcoded passwords for backward compatibility
-      if (isMainDomain) {
-        return ADMIN_PASSWORD;
-      } else if (currentTenant === 'aspire') {
-        return ASPIRE_ADMIN_PASSWORD;
-      } else if (currentTenant === 'nbis') {
-        return NBIS_ADMIN_PASSWORD;
-      } else if (currentTenant === 'dalimss') {
-        return DALIMSS_ADMIN_PASSWORD;
-      } else if (currentTenant === 'kvs') {
-        return KVS_ADMIN_PASSWORD;
-      }
-      
-      return null;
-    };
-    
-    const expectedPassword = getPasswordForTenant();
-    
-    if (expectedPassword && password === expectedPassword) {
-      setAuthenticated(true);
-      localStorage.setItem('adminAuthenticated', 'true');
-      loginSuccess = true;
-    } else if (currentTenant === 'dps' && password === DPS_ADMIN_PASSWORD) {
-      setAuthenticated(true);
-      localStorage.setItem('adminAuthenticated', 'true');
-      loginSuccess = true;
-    } else {
-      alert('Invalid password');
-      return;
-    }
-    
-    // If login successful, fetch data immediately
-    if (loginSuccess) {
-      setPassword('');
-      await fetchStudents();
-      setLastRefreshTime(new Date());
-    }
-  };
-
-  const handleLogout = () => {
-    setAuthenticated(false);
-    localStorage.removeItem('adminAuthenticated');
-  };
-
-  const handleSort = (field: SortField) => {
-    if (sortField === field) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortField(field);
-      setSortOrder('asc');
-    }
-  };
-
-  const getAssessmentStatus = (student: StudentData) => {
-    const completedQuizzes = Object.values(student.cardsStatus).filter(Boolean).length;
-    const requiredQuizzes = Number(student.educational.studentClass) >= 9 ? 6 : 5;
-    const adjustedCompletedQuizzes = Number(student.educational.studentClass) < 9 && student.cardsStatus?.careerAspirations 
-      ? completedQuizzes - 1 
-      : completedQuizzes;
-    
-    if (adjustedCompletedQuizzes === requiredQuizzes) return 'Completed';
-    if (adjustedCompletedQuizzes > 0) return 'In Progress';
-    return 'Not Started';
-  };
-
-  const calculateStats = (userData: StudentData[]) => {
+  const calculateStats = useCallback((userData: StudentData[]) => {
     const classDist: { [key: string]: number } = {};
     const assessmentStats = {
       completed: 0,
@@ -586,24 +488,9 @@ const AdminDashboard = () => {
       assessmentCompletion: assessmentStats,
       classDistribution: classDist
     });
-  };
+  }, []);
 
-  // New function to get filtered data for charts
-  const getFilteredDataForCharts = () => {
-    return students.filter(student => {
-      const matchesTenant = chartTenantFilter === 'all' || student.tenant === chartTenantFilter;
-      const matchesClass = chartClassFilter === 'all' || student.educational.studentClass === chartClassFilter;
-      return matchesTenant && matchesClass;
-    });
-  };
-
-  // Function to calculate stats for filtered data
-  const calculateFilteredStats = () => {
-    const filteredData = getFilteredDataForCharts();
-    calculateStats(filteredData);
-  };
-
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
     try {
       // Don't set loading state - fetch in background
       const usersRef = collection(db, 'users');
@@ -705,14 +592,136 @@ const AdminDashboard = () => {
       console.warn('Keeping existing students data due to fetch error');
     }
     // No finally block - don't block UI with loading state
+  }, [calculateStats]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await fetchStudents();
+      setLastRefreshTime(new Date());
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setRefreshing(false);
+    }
   };
+
+  // Fetch tenant configuration
+  useEffect(() => {
+    const fetchTenantConfig = async () => {
+      try {
+        const config = await getTenantConfig(currentTenant || 'default');
+        setTenantConfig(config);
+      } catch (error) {
+        console.error('Error fetching tenant config:', error);
+      }
+    };
+    fetchTenantConfig();
+  }, []);
+
+  useEffect(() => {
+    const isAdminAuthenticated = localStorage.getItem('adminAuthenticated');
+    if (isAdminAuthenticated === 'true') {
+      setAuthenticated(true);
+      // Fetch data in background without blocking UI
+      fetchStudents().then(() => {
+        setLastRefreshTime(new Date());
+      });
+    }
+  }, [fetchStudents]);
+
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    let loginSuccess = false;
+    
+    // Get password from tenant config (Firestore) or fallback to hardcoded passwords
+    const getPasswordForTenant = (): string | null => {
+      // First, try to get password from Firestore tenant config
+      if (tenantConfig?.settings?.adminPassword) {
+        return tenantConfig.settings.adminPassword;
+      }
+      
+      // Fallback to hardcoded passwords for backward compatibility
+      if (isMainDomain) {
+        return ADMIN_PASSWORD;
+      } else if (currentTenant === 'aspire') {
+        return ASPIRE_ADMIN_PASSWORD;
+      } else if (currentTenant === 'nbis') {
+        return NBIS_ADMIN_PASSWORD;
+      } else if (currentTenant === 'dalimss') {
+        return DALIMSS_ADMIN_PASSWORD;
+      } else if (currentTenant === 'kvs') {
+        return KVS_ADMIN_PASSWORD;
+      }
+      
+      return null;
+    };
+    
+    const expectedPassword = getPasswordForTenant();
+    
+    if (expectedPassword && password === expectedPassword) {
+      setAuthenticated(true);
+      localStorage.setItem('adminAuthenticated', 'true');
+      loginSuccess = true;
+    } else if (currentTenant === 'dps' && password === DPS_ADMIN_PASSWORD) {
+      setAuthenticated(true);
+      localStorage.setItem('adminAuthenticated', 'true');
+      loginSuccess = true;
+    } else {
+      alert('Invalid password');
+      return;
+    }
+    
+    // If login successful, fetch data immediately
+    if (loginSuccess) {
+      setPassword('');
+      await fetchStudents();
+      setLastRefreshTime(new Date());
+    }
+  };
+
+  const handleLogout = () => {
+    setAuthenticated(false);
+    localStorage.removeItem('adminAuthenticated');
+  };
+
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('asc');
+    }
+  };
+
+
+
+
+
+  // New function to get filtered data for charts
+  const getFilteredDataForCharts = useCallback(() => {
+    return students.filter(student => {
+      const matchesTenant = chartTenantFilter === 'all' || student.tenant === chartTenantFilter;
+      const matchesClass = chartClassFilter === 'all' || student.educational.studentClass === chartClassFilter;
+      return matchesTenant && matchesClass;
+    });
+  }, [students, chartTenantFilter, chartClassFilter]);
+
+  // Function to calculate stats for filtered data
+  const calculateFilteredStats = useCallback(() => {
+    const filteredData = getFilteredDataForCharts();
+    calculateStats(filteredData);
+  }, [getFilteredDataForCharts, calculateStats]);
+
+
 
   // Effect to recalculate stats when chart filters change (only for master admin)
   useEffect(() => {
     if (isMainDomain && students.length > 0) {
       calculateFilteredStats();
     }
-  }, [chartTenantFilter, chartClassFilter, students]);
+  }, [chartTenantFilter, chartClassFilter, students, calculateFilteredStats]);
 
   const filteredStudents = students
     .filter(student => {
@@ -1263,7 +1272,7 @@ const AdminDashboard = () => {
   };
 
   // New chart data for tenant-wise student distribution with class breakdown
-  const getTenantClassDistributionData = () => {
+  const getTenantClassDistributionData = useCallback(() => {
     const filteredData = getFilteredDataForCharts();
     
     // Group students by tenant and class
@@ -1303,15 +1312,15 @@ const AdminDashboard = () => {
       datasets: datasets,
       tenantTotals: tenantTotals
     };
-  };
+  }, [getFilteredDataForCharts]);
 
   const tenantClassDistributionData = useMemo(
     () => getTenantClassDistributionData(),
-    [students, chartTenantFilter, chartClassFilter]
+    [students, chartTenantFilter, chartClassFilter, getTenantClassDistributionData]
   );
 
   // New chart data for class-wise completion percentage
-  const getClassCompletionData = () => {
+  const getClassCompletionData = useCallback(() => {
     const filteredData = getFilteredDataForCharts();
     
     // Group students by class and calculate completion status
@@ -1381,15 +1390,15 @@ const AdminDashboard = () => {
         };
       })
     };
-  };
+  }, [getFilteredDataForCharts]);
 
   const classCompletionData = useMemo(
     () => getClassCompletionData(),
-    [students, chartTenantFilter, chartClassFilter]
+    [students, chartTenantFilter, chartClassFilter, getClassCompletionData]
   );
 
   // New chart data for student registration trends with multiple time granularities
-  const getRegistrationTrendData = (granularity: 'month' | 'week' | 'day' = 'month') => {
+  const getRegistrationTrendData = useCallback((granularity: 'month' | 'week' | 'day' = 'month') => {
     const filteredData = getFilteredDataForCharts();
     
     // Filter by date range if specified
@@ -1524,13 +1533,12 @@ const AdminDashboard = () => {
       totalRegistrations: dateFilteredData.length,
       granularity: granularity
     };
-  };
+  }, [getFilteredDataForCharts, dateRange]);
 
-  const [registrationGranularity, setRegistrationGranularity] = useState<'month' | 'week' | 'day'>('month');
-  const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: '', to: '' });
+
   const registrationTrendData = useMemo(
     () => getRegistrationTrendData(registrationGranularity),
-    [students, registrationGranularity, dateRange, chartTenantFilter, chartClassFilter]
+    [students, registrationGranularity, dateRange, chartTenantFilter, chartClassFilter, getRegistrationTrendData]
   );
 
 

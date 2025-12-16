@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { auth, db } from '../firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
@@ -16,6 +16,7 @@ const TestDashboardLoopPage = () => {
   const [countdown, setCountdown] = useState<number>(15);
   const [user, setUser] = useState<any>(null);
   const [documentFound, setDocumentFound] = useState<boolean>(false);
+  const documentFoundRef = useRef(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -33,6 +34,7 @@ const TestDashboardLoopPage = () => {
       setUser(currentUser);
       setStatus(`User authenticated: ${currentUser.email}`);
       setDocumentFound(false);
+      documentFoundRef.current = false;
 
       // Start countdown
       setCountdown(15);
@@ -48,7 +50,7 @@ const TestDashboardLoopPage = () => {
 
       // Set timeout to redirect if document doesn't appear within 15 seconds
       timeoutId = setTimeout(async () => {
-        if (isMounted && !documentFound) {
+        if (isMounted && !documentFoundRef.current) {
           setStatus('Document not found after 15 seconds. Signing out...');
           
           // Sign out the user to prevent refresh loop
@@ -78,6 +80,7 @@ const TestDashboardLoopPage = () => {
 
           // Document found!
           setDocumentFound(true);
+          documentFoundRef.current = true;
           setStatus('✅ Document found! User data exists.');
           setCountdown(0);
 
@@ -119,7 +122,7 @@ const TestDashboardLoopPage = () => {
       }
       unsubscribeAuth();
     };
-  }, []);
+  }, [router]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">

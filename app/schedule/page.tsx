@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { auth, db } from '../firebase';
 import { useRouter } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
-import CalendlyWidget from '@/components/CalendlyWidget';
-import LoadingSpinner from '@/components/LoadingSpinner';
+import CalendlyWidget from '@/app/components/CalendlyWidget';
+import LoadingSpinner from '@/app/components/LoadingSpinner';
 import { UserData } from '../types';
 import { CalendarIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 

@@ -463,7 +463,7 @@ const OrphanedUsersPage = () => {
     ];
   }, [totals, firestoreOnlyUsers.length]);
 
-  const matchesTimeFilter = (user: OrphanedUser) => {
+  const matchesTimeFilter = useCallback((user: OrphanedUser) => {
     if (timeFilter === 'all') return true;
     if (!user.creationTime) return false;
 
@@ -484,11 +484,11 @@ const OrphanedUsersPage = () => {
     }
 
     return true;
-  };
+  }, [timeFilter]);
 
   const filteredUsers = useMemo(() => {
     return orphanedUsers.filter((user) => matchesTimeFilter(user));
-  }, [orphanedUsers, timeFilter]);
+  }, [orphanedUsers, matchesTimeFilter]);
 
   const allVisibleSelected =
     filteredUsers.length > 0 && filteredUsers.every((user) => selectedUids.has(user.uid));
