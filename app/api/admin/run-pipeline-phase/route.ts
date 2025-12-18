@@ -21,7 +21,7 @@ const PHASE_CONFIG: Record<number, { script: string; description: string; valida
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { phase, data, language } = body;
+    const { phase, data, language, action, results } = body;
 
     if (typeof phase !== 'number' || !PHASE_CONFIG[phase]) {
       return NextResponse.json(
@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
 
     let command = `"${pythonPath}" "${scriptPath}"`;
     let tempInputFile = '';
+    let tempResultsFile = '';
 
     // Phase 0 specific logic: Handle input data
     if (phase === 0) {
@@ -84,9 +85,28 @@ export async function POST(req: NextRequest) {
       command += ` "${tempInputFile}"`;
     }
 
-    // Phase 4 specific logic: Add resume flag
+    // Phase 4 specific logic
     if (phase === 4) {
-      command += ' --resume';
+      if (action === 'fetch_prompts') {
+        command += ' --export-prompts --resume';
+      } else if (action === 'save_results') {
+        if (!results) {
+          return NextResponse.json(
+            { error: 'Results are required for save_results action' },
+            { status: 400 }
+          );
+        }
+        const timestamp = Date.now();
+        tempResultsFile = path.join(reportGenDir, `temp_results_${timestamp}.json`);
+        await fs.writeFile(tempResultsFile, JSON.stringify(results));
+        command += ` --save-results "${tempResultsFile}"`;
+      } else {
+        // Default behavior (server-side generation) - kept for backward compatibility if needed
+        // command += ' --resume';
+        // But since we want to force frontend generation, we might not want this default anymore
+        // For now, let's keep it but it shouldn't be reached if frontend logic is correct
+         command += ' --resume';
+      }
     }
 
     console.log(`Executing Phase ${phase} (${config.description}):`, command);
@@ -104,6 +124,16 @@ export async function POST(req: NextRequest) {
         console.log('Deleted temp file:', tempInputFile);
       } catch (cleanupError) {
         console.warn('Failed to delete temp file:', cleanupError);
+      }
+    }
+
+    // Cleanup temp results file for Phase 4
+    if (phase === 4 && tempResultsFile) {
+      try {
+        await fs.unlink(tempResultsFile);
+        console.log('Deleted temp results file:', tempResultsFile);
+      } catch (cleanupError) {
+        console.warn('Failed to delete temp results file:', cleanupError);
       }
     }
 
@@ -125,39 +155,48 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Parse JSON_RESULT for Phase 6
+    // Parse JSON_RESULT for Phase 6 or Phase 4 prompts
     let generatedReports = [];
-    if (phase === 6) {
+    let prompts = [];
+    let apiKey = '';
+
+    if (phase === 6 || (phase === 4 && action === 'fetch_prompts')) {
       const lines = output.split('\n');
       for (const line of lines) {
         if (line.includes('JSON_RESULT:')) {
           try {
             const jsonStr = line.split('JSON_RESULT:')[1];
-            generatedReports = JSON.parse(jsonStr);
+            const parsedResult = JSON.parse(jsonStr);
             
-            // Update reports_metadata.json
-            if (generatedReports.length > 0) {
-              const metadataPath = path.join(projectRoot, 'reports_metadata.json');
-              let metadata = [];
-              try {
-                const content = await fs.readFile(metadataPath, 'utf-8');
-                metadata = JSON.parse(content);
-              } catch {
-                // File might not exist or be empty
-              }
-              
-              // Append new reports
-              // Add language and timestamp if missing from script output
-              const newReports = generatedReports.map((r: any) => ({
-                ...r,
-                language: language || 'english',
-                generatedAt: new Date().toISOString()
-              }));
-              
-              metadata = [...newReports, ...metadata]; // Add new ones at top
-              
-              await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2));
-              console.log('Updated reports_metadata.json with', newReports.length, 'reports');
+            if (phase === 6) {
+                generatedReports = parsedResult;
+                // Update reports_metadata.json logic...
+                 if (generatedReports.length > 0) {
+                  const metadataPath = path.join(projectRoot, 'reports_metadata.json');
+                  let metadata = [];
+                  try {
+                    const content = await fs.readFile(metadataPath, 'utf-8');
+                    metadata = JSON.parse(content);
+                  } catch {
+                    // File might not exist or be empty
+                  }
+                  
+                  // Append new reports
+                  // Add language and timestamp if missing from script output
+                  const newReports = generatedReports.map((r: any) => ({
+                    ...r,
+                    language: language || 'english',
+                    generatedAt: new Date().toISOString()
+                  }));
+                  
+                  metadata = [...newReports, ...metadata]; // Add new ones at top
+                  
+                  await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2));
+                  console.log('Updated reports_metadata.json with', newReports.length, 'reports');
+                }
+            } else if (phase === 4) {
+                prompts = parsedResult;
+                apiKey = process.env.OPENAI_API_KEY || '';
             }
           } catch (e) {
             console.warn('Failed to parse JSON_RESULT or update metadata:', e);
@@ -170,7 +209,9 @@ export async function POST(req: NextRequest) {
       success: true, 
       output: output,
       error: error,
-      generatedReports: generatedReports
+      generatedReports: generatedReports,
+      prompts: prompts,
+      apiKey: apiKey
     });
 
   } catch (error: any) {

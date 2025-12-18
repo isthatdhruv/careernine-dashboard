@@ -905,7 +905,132 @@ const AdminDashboard = () => {
     }));
   };
 
+  const runPhase4Frontend = async (language: string): Promise<boolean> => {
+    const phase = 4;
+    setStatus(phase, 'running');
+    appendLog(phase, `\n--- Starting Phase ${phase} (${language}) [Frontend Mode] ---\n`);
+
+    try {
+      // Step 1: Fetch Prompts
+      appendLog(phase, "Fetching prompts from backend...\n");
+      const fetchResponse = await fetch('/api/admin/run-pipeline-phase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phase, language, action: 'fetch_prompts' }),
+      });
+      
+      const fetchResult = await fetchResponse.json();
+      
+      if (!fetchResult.success) {
+        throw new Error(fetchResult.error || "Failed to fetch prompts");
+      }
+      
+      const prompts = fetchResult.prompts;
+      const apiKey = fetchResult.apiKey;
+      
+      if (!apiKey) {
+        throw new Error("API Key not received from backend");
+      }
+      
+      if (!prompts || prompts.length === 0) {
+        appendLog(phase, "No students need processing (all cached or skipped).\n");
+        setStatus(phase, 'success');
+        return true;
+      }
+      
+      appendLog(phase, `Received ${prompts.length} students to process.\n`);
+      
+      // Step 2: Process with OpenAI
+      const results = [];
+      let processedCount = 0;
+      
+      for (const item of prompts) {
+        appendLog(phase, `Processing ${item.name}...\n`);
+        
+        try {
+          // AI Summary
+          const aiSummaryRes = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+              model: "gpt-4o",
+              messages: [{ role: "user", content: item.ai_summary_prompt }],
+              temperature: 1,
+              max_tokens: 2048
+            })
+          });
+          
+          const aiSummaryData = await aiSummaryRes.json();
+          // Fix: .strip() is Python, use .trim() in JS
+          const aiSummary = (aiSummaryData.choices?.[0]?.message?.content || "").replace(/\*\*\*/g, "").trim();
+          
+          // Learning Style Summary
+          const learningSummaryRes = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+              model: "gpt-4o",
+              messages: [{ role: "user", content: item.learning_style_prompt }],
+              temperature: 1,
+              max_tokens: 2048
+            })
+          });
+          
+          const learningSummaryData = await learningSummaryRes.json();
+          // Fix: .strip() is Python, use .trim() in JS
+          const learningSummary = (learningSummaryData.choices?.[0]?.message?.content || "").replace(/\*\*\*/g, "").trim();
+          
+          results.push({
+            student_id: item.student_id,
+            ai_summary: aiSummary,
+            learning_style_summary: learningSummary
+          });
+          
+          processedCount++;
+          // appendLog(phase, `  ✅ Completed ${item.name}\n`);
+          
+        } catch (err: any) {
+          appendLog(phase, `  ❌ Failed ${item.name}: ${err.message}\n`);
+        }
+      }
+      
+      // Step 3: Save Results
+      appendLog(phase, `Saving ${results.length} results to backend...\n`);
+      const saveResponse = await fetch('/api/admin/run-pipeline-phase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phase, language, action: 'save_results', results }),
+      });
+      
+      const saveResult = await saveResponse.json();
+      
+      if (saveResult.success) {
+        appendLog(phase, (saveResult.output || "") + `\nPhase ${phase} Completed Successfully.\n`);
+        setStatus(phase, 'success');
+        return true;
+      } else {
+        throw new Error(saveResult.error || "Failed to save results");
+      }
+
+    } catch (error: any) {
+      console.error(`Error running phase ${phase}:`, error);
+      appendLog(phase, `\nERROR: ${error.message}\n`);
+      setStatus(phase, 'error');
+      return false;
+    }
+  };
+
   const runPhase = async (phase: number, language: string, data?: any[][]): Promise<boolean> => {
+    if (phase === 4) {
+        return runPhase4Frontend(language);
+    }
+
     setStatus(phase, 'running');
     appendLog(phase, `\n--- Starting Phase ${phase} (${language}) ---\n`);
 
