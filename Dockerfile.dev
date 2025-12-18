@@ -1,0 +1,58 @@
+# Development Dockerfile with virtualenv setup
+FROM node:18-bullseye
+
+# 1. Install Python, virtualenv and System Dependencies (including Puppeteer libs)
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    python3-venv \
+    virtualenv \
+    wget \
+    gnupg \
+    ca-certificates \
+    procps \
+    libxss1 \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libgtk-3-0 \
+    libnss3 \
+    libx11-xcb1 \
+    libxcomposite1 \
+    libxcursor1 \
+    libxdamage1 \
+    libxi6 \
+    libxtst6 \
+    libgbm1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2. Set Working Directory
+WORKDIR /app
+
+# 3. Copy Package Files
+COPY package*.json ./
+
+# 4. Install Node Dependencies
+RUN npm install
+
+# 5. Copy Source Code
+COPY . .
+
+# 6. Setup Python virtual environments for report generators
+WORKDIR /app/report-gen-english
+RUN virtualenv .venv && \
+    . .venv/bin/activate && \
+    pip install -r requirements.txt
+
+WORKDIR /app/report-gen-hindi
+RUN virtualenv .venv && \
+    . .venv/bin/activate && \
+    pip install -r requirements.txt
+
+# 7. Go back to app root
+WORKDIR /app
+
+# 8. Expose Port
+EXPOSE 3000
+
+# 9. Start the Application in development mode
+CMD ["npm", "run", "dev"]
