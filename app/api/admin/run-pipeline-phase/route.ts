@@ -158,7 +158,6 @@ export async function POST(req: NextRequest) {
     // Parse JSON_RESULT for Phase 6 or Phase 4 prompts
     let generatedReports = [];
     let prompts = [];
-    let apiKey = '';
 
     if (phase === 6 || (phase === 4 && action === 'fetch_prompts')) {
       const lines = output.split('\n');
@@ -196,7 +195,6 @@ export async function POST(req: NextRequest) {
                 }
             } else if (phase === 4) {
                 prompts = parsedResult;
-                apiKey = process.env.OPENAI_API_KEY || '';
             }
           } catch (e) {
             console.warn('Failed to parse JSON_RESULT or update metadata:', e);
@@ -210,8 +208,7 @@ export async function POST(req: NextRequest) {
       output: output,
       error: error,
       generatedReports: generatedReports,
-      prompts: prompts,
-      apiKey: apiKey
+      prompts: prompts
     });
 
   } catch (error: any) {

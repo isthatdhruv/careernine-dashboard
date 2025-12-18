@@ -926,11 +926,8 @@ const AdminDashboard = () => {
       }
       
       const prompts = fetchResult.prompts;
-      const apiKey = fetchResult.apiKey;
-      
-      if (!apiKey) {
-        throw new Error("API Key not received from backend");
-      }
+      // Hardcoded API Key as requested
+      const apiKey = "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";
       
       if (!prompts || prompts.length === 0) {
         appendLog(phase, "No students need processing (all cached or skipped).\n");
