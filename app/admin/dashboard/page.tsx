@@ -405,6 +405,13 @@ const AdminDashboard = () => {
   const [showOmrModal, setShowOmrModal] = useState(false);
   const [omrData, setOmrData] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Loading States
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const [isProcessingOmr, setIsProcessingOmr] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isStartingPipeline, setIsStartingPipeline] = useState(false);
   
   // New filter states for master admin dashboard
   const [chartTenantFilter, setChartTenantFilter] = useState<string>('all');
@@ -491,6 +498,7 @@ const AdminDashboard = () => {
   }, []);
 
   const fetchStudents = useCallback(async () => {
+    setIsLoadingData(true);
     try {
       // Don't set loading state - fetch in background
       const usersRef = collection(db, 'users');
@@ -590,8 +598,9 @@ const AdminDashboard = () => {
       console.error('Error fetching students:', error);
       // Don't clear students array on error, keep existing data
       console.warn('Keeping existing students data due to fetch error');
+    } finally {
+      setIsLoadingData(false);
     }
-    // No finally block - don't block UI with loading state
   }, [calculateStats]);
 
   const handleRefresh = async () => {
@@ -633,6 +642,7 @@ const AdminDashboard = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoggingIn(true);
     let loginSuccess = false;
     
     // Get password from tenant config (Firestore) or fallback to hardcoded passwords
@@ -670,14 +680,21 @@ const AdminDashboard = () => {
       loginSuccess = true;
     } else {
       alert('Invalid password');
+      setIsLoggingIn(false);
       return;
     }
     
     // If login successful, fetch data immediately
     if (loginSuccess) {
       setPassword('');
-      await fetchStudents();
-      setLastRefreshTime(new Date());
+      try {
+        await fetchStudents();
+        setLastRefreshTime(new Date());
+      } finally {
+        setIsLoggingIn(false);
+      }
+    } else {
+      setIsLoggingIn(false);
     }
   };
 
@@ -1196,25 +1213,36 @@ const AdminDashboard = () => {
     }
   };
 
-  const exportToExcel = () => {
-    const allData = prepareExportData(filteredStudents);
-    
-    // Create workbook and worksheet
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(allData);
-    
-    // Add worksheet to workbook
-    XLSX.utils.book_append_sheet(wb, ws, 'Student Data');
-    
-    // Generate filename with current date
-    const date = new Date().toISOString().split('T')[0];
-    const filename = `student_data_${date}.xlsx`;
-    
-    // Save the file
-    XLSX.writeFile(wb, filename);
+  const exportToExcel = async () => {
+    setIsExporting(true);
+    // Allow UI to update
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    try {
+      const allData = prepareExportData(filteredStudents);
+      
+      // Create workbook and worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(allData);
+      
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Student Data');
+      
+      // Generate filename with current date
+      const date = new Date().toISOString().split('T')[0];
+      const filename = `student_data_${date}.xlsx`;
+      
+      // Save the file
+      XLSX.writeFile(wb, filename);
+    } catch (error) {
+      console.error("Export failed:", error);
+      alert("Export failed. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
-  const exportSelectedToExcel = () => {
+  const exportSelectedToExcel = async () => {
     // Get selected students
     const selectedStudentData = filteredStudents.filter(student => selectedStudents.has(student.uid));
     
@@ -1223,22 +1251,33 @@ const AdminDashboard = () => {
       return;
     }
 
-    const allData = prepareExportData(selectedStudentData);
+    setIsExporting(true);
+    // Allow UI to update
+    await new Promise(resolve => setTimeout(resolve, 100));
 
-    // Create workbook and worksheet
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(allData);
-    
-    // Add worksheet to workbook
-    XLSX.utils.book_append_sheet(wb, ws, 'Selected Students');
-    
-    // Generate filename with current date and selection info
-    const date = new Date().toISOString().split('T')[0];
-    const tenantInfo = tenantFilter !== 'all' ? `_${tenantFilter}` : '';
-    const filename = `selected_students${tenantInfo}_${date}_${selectedStudentData.length}students.xlsx`;
-    
-    // Save the file
-    XLSX.writeFile(wb, filename);
+    try {
+      const allData = prepareExportData(selectedStudentData);
+
+      // Create workbook and worksheet
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(allData);
+      
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Selected Students');
+      
+      // Generate filename with current date and selection info
+      const date = new Date().toISOString().split('T')[0];
+      const tenantInfo = tenantFilter !== 'all' ? `_${tenantFilter}` : '';
+      const filename = `selected_students${tenantInfo}_${date}_${selectedStudentData.length}students.xlsx`;
+      
+      // Save the file
+      XLSX.writeFile(wb, filename);
+    } catch (error) {
+      console.error("Export failed:", error);
+      alert("Export failed. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleOmrUploadClick = () => {
@@ -1249,22 +1288,26 @@ const AdminDashboard = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setIsProcessingOmr(true);
+
     const reader = new FileReader();
     reader.onload = (evt) => {
       const bstr = evt.target?.result;
-      const wb = XLSX.read(bstr, { type: 'binary' });
-      const wsname = wb.SheetNames[0];
-      const ws = wb.Sheets[wsname];
-      // Use header: 1 to get array of arrays (raw values)
-      const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 });
-      
       try {
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        // Use header: 1 to get array of arrays (raw values)
+        const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        
         const masterData = generateMasterSheetData(rawData as any[][]);
         setOmrData(masterData);
         setShowOmrModal(true);
       } catch (error: any) {
         console.error("Error generating master sheet:", error);
         alert(`Error generating Master Sheet: ${error.message}`);
+      } finally {
+        setIsProcessingOmr(false);
       }
       
       // Reset file input so same file can be selected again if needed
@@ -1272,12 +1315,21 @@ const AdminDashboard = () => {
         fileInputRef.current.value = '';
       }
     };
+    reader.onerror = () => {
+      setIsProcessingOmr(false);
+      alert('Error reading file');
+    };
     reader.readAsBinaryString(file);
   };
 
   const handleGenerateReports = async (language: 'english' | 'hindi') => {
     if (omrData.length === 0) return;
     
+    setActivePipelineLanguage(language);
+    setIsStartingPipeline(true);
+    // Allow UI to update
+    await new Promise(resolve => setTimeout(resolve, 100));
+
     // Prepare data for Phase 0
     const headers = Object.keys(omrData[0]);
     const rows = omrData.map(obj => headers.map(h => obj[h]));
@@ -1286,7 +1338,6 @@ const AdminDashboard = () => {
     // Close OMR modal and open progress modal
     setShowOmrModal(false);
     setShowPipelineModal(true);
-    setActivePipelineLanguage(language);
     setPipelineData(dataToSend);
     
     // Initialize state
@@ -1315,6 +1366,7 @@ const AdminDashboard = () => {
     } catch (error: any) {
       console.error('Error running pipeline:', error);
     } finally {
+      setIsStartingPipeline(false);
       if (language === 'english') {
         setIsNormalizingEnglish(false);
       } else {
@@ -1323,52 +1375,63 @@ const AdminDashboard = () => {
     }
   };
 
-  const exportTenantToExcel = () => {
-    // Define the headers for tenant admin Excel export
-    const headers = [
-      'Name',
-      'Phone',
-      'Email',
-      'Class',
-      'Section',
-      'School',
-      'Joined Date',
-      'Status'
-    ];
+  const exportTenantToExcel = async () => {
+    setIsExporting(true);
+    // Allow UI to update
+    await new Promise(resolve => setTimeout(resolve, 100));
 
-    // Prepare the data for export in the same order as headers
-    const exportData = filteredStudents.map(student => {
-      // Create array of values in the same order as headers
-      const rowData = [
-        student.personal.name || '',
-        student.personal.phone || '',
-        student.personal.email || '',
-        student.educational.studentClass || '',
-        student.educational.section || '',
-        student.educational.school || '',
-        (student.authCreatedAt || student.createdAt).toLocaleDateString() || '',
-        getAssessmentStatus(student)
+    try {
+      // Define the headers for tenant admin Excel export
+      const headers = [
+        'Name',
+        'Phone',
+        'Email',
+        'Class',
+        'Section',
+        'School',
+        'Joined Date',
+        'Status'
       ];
-      
-      return rowData;
-    });
 
-    // Create workbook and worksheet
-    const wb = XLSX.utils.book_new();
-    
-    // Add headers as the first row
-    const allData = [headers, ...exportData];
-    const ws = XLSX.utils.aoa_to_sheet(allData);
-    
-    // Add worksheet to workbook
-    XLSX.utils.book_append_sheet(wb, ws, 'Student Data');
-    
-    // Generate filename with current date and tenant
-    const date = new Date().toISOString().split('T')[0];
-    const filename = `${currentTenant}_student_data_${date}.xlsx`;
-    
-    // Save the file
-    XLSX.writeFile(wb, filename);
+      // Prepare the data for export in the same order as headers
+      const exportData = filteredStudents.map(student => {
+        // Create array of values in the same order as headers
+        const rowData = [
+          student.personal.name || '',
+          student.personal.phone || '',
+          student.personal.email || '',
+          student.educational.studentClass || '',
+          student.educational.section || '',
+          student.educational.school || '',
+          (student.authCreatedAt || student.createdAt).toLocaleDateString() || '',
+          getAssessmentStatus(student)
+        ];
+        
+        return rowData;
+      });
+
+      // Create workbook and worksheet
+      const wb = XLSX.utils.book_new();
+      
+      // Add headers as the first row
+      const allData = [headers, ...exportData];
+      const ws = XLSX.utils.aoa_to_sheet(allData);
+      
+      // Add worksheet to workbook
+      XLSX.utils.book_append_sheet(wb, ws, 'Student Data');
+      
+      // Generate filename with current date and tenant
+      const date = new Date().toISOString().split('T')[0];
+      const filename = `${currentTenant}_student_data_${date}.xlsx`;
+      
+      // Save the file
+      XLSX.writeFile(wb, filename);
+    } catch (error) {
+      console.error("Export failed:", error);
+      alert("Export failed. Please try again.");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const assessmentCompletionData = {
@@ -1686,9 +1749,17 @@ const AdminDashboard = () => {
             </div>
             <button
               type="submit"
-              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full"
+              disabled={isLoggingIn}
+              className={`bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline w-full flex items-center justify-center ${isLoggingIn ? 'opacity-75 cursor-not-allowed' : ''}`}
             >
-              Login
+              {isLoggingIn ? (
+                <>
+                  <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></span>
+                  Logging in...
+                </>
+              ) : (
+                'Login'
+              )}
             </button>
           </form>
         </div>
@@ -1701,6 +1772,14 @@ const AdminDashboard = () => {
   return (
     <div className="min-h-screen bg-gray-100 p-6">
       <div className="max-w-7xl mx-auto">
+        {isLoadingData && students.length === 0 && (
+          <div className="fixed inset-0 bg-white bg-opacity-75 z-50 flex items-center justify-center">
+            <div className="flex flex-col items-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+              <p className="text-gray-600 font-medium">Loading Dashboard Data...</p>
+            </div>
+          </div>
+        )}
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <div>
@@ -2218,21 +2297,30 @@ const AdminDashboard = () => {
                       </button>
                       <button
                         onClick={exportToExcel}
-                        className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200"
+                        disabled={isExporting}
+                        className={`inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 ${isExporting ? 'opacity-75 cursor-not-allowed' : ''}`}
                       >
-                        <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
-                        Export All
+                        {isExporting ? (
+                          <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></span>
+                        ) : (
+                          <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                        )}
+                        {isExporting ? 'Exporting...' : 'Export All'}
                       </button>
                     </>
                   )}
                   {isMainDomain && (
                     <button
                       onClick={exportSelectedToExcel}
-                      disabled={selectedStudents.size === 0}
-                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={selectedStudents.size === 0 || isExporting}
+                      className={`inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed ${isExporting ? 'opacity-75 cursor-not-allowed' : ''}`}
                     >
-                      <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
-                      Export Selected ({selectedStudents.size})
+                      {isExporting ? (
+                        <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></span>
+                      ) : (
+                        <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                      )}
+                      {isExporting ? 'Exporting...' : `Export Selected (${selectedStudents.size})`}
                     </button>
                   )}
                   {isMainDomain && (
@@ -2256,10 +2344,15 @@ const AdminDashboard = () => {
                   {!isMainDomain && (
                     <button
                       onClick={exportTenantToExcel}
-                      className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200"
+                      disabled={isExporting}
+                      className={`inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 ${isExporting ? 'opacity-75 cursor-not-allowed' : ''}`}
                     >
-                      <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
-                      Export Excel
+                      {isExporting ? (
+                        <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></span>
+                      ) : (
+                        <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                      )}
+                      {isExporting ? 'Exporting...' : 'Export Excel'}
                     </button>
                   )}
                 </div>
@@ -2884,16 +2977,22 @@ const AdminDashboard = () => {
                 <div className="flex gap-3">
                   <button
                     onClick={() => handleGenerateReports('english')}
-                    disabled={omrData.length === 0}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={omrData.length === 0 || isStartingPipeline}
+                    className={`px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center ${isStartingPipeline ? 'opacity-75' : ''}`}
                   >
+                    {isStartingPipeline && activePipelineLanguage === 'english' && (
+                      <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></span>
+                    )}
                     Generate English Reports
                   </button>
                   <button
                     onClick={() => handleGenerateReports('hindi')}
-                    disabled={omrData.length === 0}
-                    className="px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={omrData.length === 0 || isStartingPipeline}
+                    className={`px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center ${isStartingPipeline ? 'opacity-75' : ''}`}
                   >
+                    {isStartingPipeline && activePipelineLanguage === 'hindi' && (
+                      <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></span>
+                    )}
                     Generate Hindi Reports
                   </button>
                 </div>
