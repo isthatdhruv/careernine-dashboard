@@ -61,7 +61,7 @@ next-env.d.ts
 firebase-service-account.json
 ServiceAccountKey.json
 service-account.json
-
+reports_metadata.json
 # Ignore specific API routes
 app/api/ability-detailed
 app/api/export

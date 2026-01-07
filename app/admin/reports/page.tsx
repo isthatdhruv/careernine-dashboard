@@ -294,10 +294,21 @@ export default function ReportsPage() {
     fetchReports();
   }, []);
 
+  // Filter State
+  const [selectedSchool, setSelectedSchool] = useState<string>('all');
+  const [selectedClass, setSelectedClass] = useState<string>('all');
+
   // Filtered Reports
-  const filteredReports = reports.filter(r => 
-    (r.language || 'english').toLowerCase() === activeLanguage
-  );
+  const filteredReports = reports.filter(r => {
+    const matchesLanguage = (r.language || 'english').toLowerCase() === activeLanguage;
+    const matchesSchool = selectedSchool === 'all' || r.school === selectedSchool;
+    const matchesClass = selectedClass === 'all' || r.class === selectedClass;
+    return matchesLanguage && matchesSchool && matchesClass;
+  });
+
+  // Unique Filter Options
+  const uniqueSchools = Array.from(new Set(reports.map(r => r.school).filter(Boolean))).sort();
+  const uniqueClasses = Array.from(new Set(reports.map(r => r.class).filter(Boolean))).sort();
 
   const [omrLogs, setOmrLogs] = useState<string[]>([]);
 
@@ -616,6 +627,56 @@ export default function ReportsPage() {
             Upload OMR Data
           </button>
         </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white p-4 rounded-lg shadow border border-gray-200 mb-6 flex flex-wrap gap-4 items-center">
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-700">School:</label>
+          <select
+            value={selectedSchool}
+            onChange={(e) => {
+              setSelectedSchool(e.target.value);
+              setSelectedReports(new Set()); // Clear selection on filter change
+            }}
+            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          >
+            <option value="all">All Schools</option>
+            {uniqueSchools.map(school => (
+              <option key={school} value={school}>{school}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-gray-700">Class:</label>
+          <select
+            value={selectedClass}
+            onChange={(e) => {
+              setSelectedClass(e.target.value);
+              setSelectedReports(new Set()); // Clear selection on filter change
+            }}
+            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          >
+            <option value="all">All Classes</option>
+            {uniqueClasses.map(cls => (
+              <option key={cls} value={cls}>{cls}</option>
+            ))}
+          </select>
+        </div>
+        
+        {(selectedSchool !== 'all' || selectedClass !== 'all') && (
+          <button
+            onClick={() => {
+              setSelectedSchool('all');
+              setSelectedClass('all');
+              setSelectedReports(new Set());
+            }}
+            className="text-sm text-red-600 hover:text-red-800 font-medium"
+          >
+            Clear Filters
+          </button>
+        )}
       </div>
 
       {/* Report List Table */}
