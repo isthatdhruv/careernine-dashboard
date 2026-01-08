@@ -3,10 +3,11 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   output: 'standalone',
   serverExternalPackages: ['firebase-admin'],
-  eslint: {
-    // Allows builds to complete even if ESLint errors exist.
-    ignoreDuringBuilds: true,
-  },
+  // eslint: {
+  //   // Allows builds to complete even if ESLint errors exist.
+  //   ignoreDuringBuilds: true,
+  // },
+  turbopack: {},
   typescript: {
     // Allows builds to complete even if type errors exist.
     ignoreBuildErrors: true,
