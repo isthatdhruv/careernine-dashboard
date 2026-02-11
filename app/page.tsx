@@ -1,6 +1,27 @@
-import { redirect } from "next/navigation";
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from './firebase';
 
 export default function Home() {
-  redirect("/login");
-  return null; // This won't render anything since the user is redirected
+  const router = useRouter();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        // User is authenticated, redirect to admin dashboard
+        router.replace('/admin/dashboard');
+      } else {
+        // User is not authenticated, redirect to login
+        router.replace('/login');
+      }
+    });
+
+    return () => unsubscribe();
+  }, [router]);
+
+  // Show nothing while checking auth
+  return null;
 }

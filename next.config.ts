@@ -12,40 +12,6 @@ const nextConfig: NextConfig = {
     // your project has type errors.
     ignoreBuildErrors: true,
   },
-  async rewrites() {
-    return [
-      {
-        source: '/:path*',
-        destination: '/:path*',
-        has: [
-          {
-            type: 'host',
-            value: 'nbis.localhost:3000',
-          },
-        ],
-      },
-      {
-        source: '/:path*',
-        destination: '/:path*',
-        has: [
-          {
-            type: 'host',
-            value: 'aspire.localhost:3000',
-          },
-        ],
-      },
-      {
-        source: '/:path*',
-        destination: '/:path*',
-        has: [
-          {
-            type: 'host',
-            value: 'dalimss.localhost:3000',
-          },
-        ],
-      },
-    ];
-  },
 };
 
 export default nextConfig;
