@@ -57,7 +57,7 @@ const AdminNav = () => {
                   Reports
                 </Link>
               )}
-              {isSuperAdminDomain && (
+              {/* {isSuperAdminDomain && (
                 <Link
                   href="/admin/orphaned-users"
                   className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium ${
@@ -68,7 +68,7 @@ const AdminNav = () => {
                 >
                   Orphaned Users
                 </Link>
-              )}
+              )} */}
             </div>
           </div>
         </div>
