@@ -1,13 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { auth, db } from '../firebase';
+import { auth } from '../firebase';
 import { FirebaseError } from 'firebase/app';
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Input from './Input';
-import Link from 'next/link';
 import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
 import LoadingSpinner from './LoadingSpinner';
 
@@ -25,29 +23,10 @@ const LoginForm = () => {
   useEffect(() => {
     if (errorMessage) setError(errorMessage);
 
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        // Only redirect if we're actually on the login page
-        if (window.location.pathname === '/login') {
-          // Check if user has a Firestore document before redirecting
-          // This prevents redirect loop for orphaned auth accounts
-          try {
-            const userDoc = await getDoc(doc(db, 'users', user.uid));
-            if (userDoc.exists()) {
-              router.push('/dashboard');
-            } else {
-              // User is authenticated but has no document - this is an orphaned account
-              // Don't redirect, let them try logging in again or register
-              console.warn('Authenticated user has no Firestore document - orphaned account detected');
-              setError('Your account appears to be incomplete. Please try logging in again, or register if you don\'t have an account.');
-              setAuthChecking(false);
-            }
-          } catch (error) {
-            console.error('Error checking user document:', error);
-            // On error, still try to redirect (might be a temporary issue)
-            router.push('/dashboard');
-          }
-        }
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user && window.location.pathname === '/login') {
+        // User is already authenticated, redirect to admin dashboard
+        router.push('/admin/dashboard');
       } else {
         setAuthChecking(false);
       }
@@ -62,36 +41,9 @@ const LoginForm = () => {
     setSubmitting(true);
 
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      
-      try {
-        // Check if user has a Firestore document before redirecting
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (userDoc.exists()) {
-          // Document exists - safe to redirect
-          router.push('/dashboard');
-          return;
-        } else {
-          // User is authenticated but has no document - orphaned account
-          setSubmitting(false);
-          setError('We couldn\'t find your account profile. This usually means your previous registration didn\'t finish. Please register again or contact support@career-9.com.');
-          
-          // Sign out the orphaned account to prevent issues
-          try {
-            await signOut(auth);
-            console.log('Signed out orphaned account after login attempt');
-          } catch (signOutError) {
-            console.error('Error signing out orphaned account:', signOutError);
-          }
-          return;
-        }
-      } catch (docError) {
-        console.error('Error checking user document during login:', docError);
-        setSubmitting(false);
-        setError('We had trouble verifying your account profile. Please try again in a moment or contact support@career-9.com if this continues.');
-        return;
-      }
+      await signInWithEmailAndPassword(auth, email, password);
+      // Successful login - redirect to admin dashboard
+      router.push('/admin/dashboard');
     } catch (err: unknown) {
       setSubmitting(false);
 
@@ -107,18 +59,18 @@ const LoginForm = () => {
             setError('Incorrect email or password. Please double-check and try again.');
             break;
           case 'auth/user-not-found':
-            setError('No account found with this email. Please sign up.');
+            setError('No admin account found with this email.');
             break;
           case 'auth/too-many-requests':
             setError('Too many failed attempts. Please wait a moment and try again.');
             break;
           default:
-            setError('We couldn’t sign you in. Please try again shortly or contact support@career-9.com.');
+            setError('We couldn't sign you in. Please try again shortly or contact support@career-9.com.');
             break;
         }
       } else {
         console.error('Login unexpected error:', err);
-        setError('We couldn’t reach the login service. Please check your internet connection or browser extensions and try again.');
+        setError('We couldn't reach the login service. Please check your internet connection and try again.');
       }
     }
   };
@@ -132,7 +84,7 @@ const LoginForm = () => {
       <div className="space-y-4">
         <Input
           type="email"
-          placeholder="Email Address"
+          placeholder="Admin Email Address"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           name="email"
@@ -142,7 +94,7 @@ const LoginForm = () => {
         <div className="relative">
           <Input
             type={showPassword ? 'text' : 'password'}
-            placeholder="Password"
+            placeholder="Admin Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             name="password"
@@ -179,23 +131,12 @@ const LoginForm = () => {
             <span>Logging in...</span>
           </div>
         ) : (
-          'Login'
+          'Login to Admin Dashboard'
         )}
       </button>
 
-      <div className="flex flex-col space-y-2 text-center text-sm text-gray-600 mt-4">
-        <p>
-          Don&apos;t have an account?{' '}
-          <Link href="/register" className="text-blue-600 hover:text-blue-500 font-medium">
-            Register here
-          </Link>
-        </p>
-        <p>
-          Forgot your password?{' '}
-          <Link href="/forgot-password" className="text-blue-600 hover:text-blue-500 font-medium">
-            Reset Password
-          </Link>
-        </p>
+      <div className="text-center text-sm text-gray-600 mt-4">
+        <p>Admin access only. Contact support@career-9.com for assistance.</p>
       </div>
     </form>
   );
