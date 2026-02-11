@@ -4,14 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Career Navigator 360 is a comprehensive career assessment and guidance platform built with Next.js 15, Firebase, and Python. It features multi-tenant architecture with subdomain-based routing, allowing multiple schools/organizations to have their own branded instances.
+**Simplified Admin Dashboard & Report Generation System** - A streamlined application for managing user data and generating career assessment reports in English and Hindi. This is a stripped-down version focused solely on admin functionality and report generation.
 
 ## Technology Stack
 
 - **Frontend/Backend**: Next.js 15 (App Router), React 18, TypeScript
 - **Database & Auth**: Firebase (Firestore, Authentication)
-- **Payments**: Razorpay integration
-- **Scheduling**: Calendly API integration
 - **Report Generation**: Python (separate pipelines for English and Hindi reports)
 - **Styling**: Tailwind CSS
 - **Deployment**: Docker + Nginx reverse proxy
@@ -50,138 +48,48 @@ docker-compose up --build
 docker-compose down
 ```
 
-### Python Report Generation
+## Application Structure
 
-The report generation system has separate pipelines for English and Hindi reports, located in `report-gen-english/` and `report-gen-hindi/`. Each has its own Python virtual environment and dependencies.
+### Core Routes
 
-## Multi-Tenant Architecture
+- **`/`** - Root page with auth-based redirect:
+  - Authenticated → `/admin/dashboard`
+  - Not authenticated → `/login`
+- **`/login`** - Admin authentication page
+- **`/admin/dashboard`** - Main admin interface for managing users and reports
+- **`/admin/reports`** - Report management page
+- **`/admin/orphaned-users`** - User management for orphaned accounts
 
-### Core Concept
+### API Routes
 
-The application uses **subdomain-based multi-tenancy**. Each tenant (school/organization) gets its own subdomain and can have customized features.
+All admin functionality is under `/api/admin/`:
 
-### Key Files
+- **Report Generation**:
+  - `run-normalizer` - Normalize Hindi report data
+  - `run-normalizer-english` - Normalize English report data
+  - `run-pipeline-phase` - Execute specific report generation phases
+  - `list-reports` - List available generated reports
+  - `view-report` - View report metadata
 
-- `middleware.ts` - Extracts tenant from hostname and adds to request headers
-- `app/lib/tenant-config.ts` - Client-side tenant config fetching
-- `app/lib/tenant-shared.ts` - Shared tenant types and utilities
-- `app/api/tenant-config/route.ts` - Server-side tenant config API
+- **Report Download**:
+  - `download-pdf` - Download single PDF report
+  - `download-batch-zip` - Download multiple reports as ZIP
 
-### How It Works
+- **Data Management**:
+  - `export-detailed` - Export detailed user data
+  - `upload-to-drive` - Upload reports to Google Drive
+  - `orphaned-users` - Manage users without proper tenant assignment
 
-1. User visits subdomain (e.g., `nbis.example.com`)
-2. Middleware extracts subdomain (`nbis`) from hostname
-3. Tenant identifier added to `x-tenant` header
-4. Components/APIs fetch tenant-specific configuration from Firestore
-5. Features (payments, Calendly) enabled/disabled per tenant
-
-### Tenant Structure in Firestore
-
-```typescript
-{
-  id: "subdomain",
-  name: "Display Name",
-  subdomain: "subdomain",
-  features: {
-    enablePayments: boolean,
-    enableCalendly: boolean
-  },
-  settings: {
-    supportEmail: string,
-    calendlyUrl?: string,
-    adminPassword?: string
-  }
-}
-```
-
-### Tenant Management Scripts
-
-```bash
-# Create new tenant
-node scripts/create-tenant.js <subdomain> [name] [enablePayments] [enableCalendly] [calendlyUrl] [supportEmail] [adminPassword]
-
-# List all tenants
-node scripts/list-tenants.js
-
-# Set admin password
-node scripts/set-tenant-password.js <subdomain> <password>
-
-# Delete tenant
-node scripts/delete-tenant.js [subdomain] [--reassign <target>]
-
-# Update tenant configuration
-node scripts/update-tenant.js
-```
-
-## Firebase Architecture
-
-### Collections
-
-- `users` - User profiles and assessment responses
-- `settings` - Global settings (pricing, plans)
-- `tenants` - Tenant configurations (multi-tenancy)
-- `coupons` - Discount coupon codes
-- `payments` - Payment transaction records
-- `appointments` - Calendly appointment tracking
-
-### Admin Access
-
-The Firebase Admin SDK is initialized in `firebase-admin.ts` for server-side operations. Client-side Firebase is configured in `app/firebase.ts`.
-
-## Application Flow
-
-### User Journey
-
-1. **Registration** (`/register`) - User creates account with email/password
-2. **Payment** (`/upgrade`) - Razorpay checkout (if tenant has payments enabled)
-3. **Assessment Sections** (sequential):
-   - Personality (`/personality`)
-   - Ability (`/ability`)
-   - Values (`/values`)
-   - Subjects of Interest (`/subjects-of-interest`)
-   - Career Aspirations (`/career-aspirations`)
-   - Multiple Intelligence (`/multiple-intelligence`)
-4. **Dashboard** (`/dashboard`) - View completion status, schedule counseling
-5. **Scheduling** (`/schedule`) - Book Calendly appointment (if enabled)
-6. **Profile** (`/profile`) - View/edit user information
-
-### Admin Dashboard
-
-Located at `/admin/dashboard` - password-protected (per-tenant passwords stored in Firestore).
-
-Key admin features:
-- View all users and their assessment progress
-- Generate and download reports (English/Hindi)
-- Create and manage coupon codes
-- Export user data
-- Upload reports to Google Drive
-- View orphaned users (users without tenant assignment)
-
-## API Routes
-
-### Public APIs
-- `/api/tenant-config` - Fetch tenant configuration
-- `/api/check-coupon` - Validate coupon codes
-- `/api/create-order` - Create Razorpay order
-- `/api/verify-payment` - Verify Razorpay payment
-- `/api/calendly/*` - Calendly integration endpoints
-
-### Admin APIs (under `/api/admin/`)
-- `download-pdf` - Download generated PDF reports
-- `download-batch-zip` - Batch download reports as ZIP
-- `export-detailed` - Export detailed user data
-- `list-reports` - List available reports
-- `orphaned-users` - Manage users without tenant
-- `run-normalizer` - Trigger data normalization
-- `run-pipeline-phase` - Run report generation phases
-- `upload-to-drive` - Upload reports to Google Drive
-- `view-report` - View report metadata
+- **User Data**:
+  - `/api/users/creation-times` - Get user creation timestamps
 
 ## Report Generation System
 
 The report generation is a **Python-based pipeline** with multiple phases:
 
 ### Pipeline Phases (both English/Hindi)
+
+Located in `report-gen-english/` and `report-gen-hindi/`:
 
 1. **Data Normalizer** (`00_data_normalizer.py`) - Normalize Firestore data
 2. **Eligibility Check** (`00_eligibility_check.py`) - Validate assessment completion
@@ -192,25 +100,73 @@ The report generation is a **Python-based pipeline** with multiple phases:
 7. **Data Enrichment** (`05_data_enrichment.py`) - Enrich with additional data
 8. **Generate Reports** (`06_generate_reports.py`) - Create final DOCX/PDF
 
-### Running Report Generation via API
+### Running Report Generation
 
 The admin dashboard triggers Python scripts via API endpoints. The Node.js backend uses `child_process` to execute Python scripts with proper virtual environment activation.
 
-## Assessment Question Data
+### Python Dependencies
 
-Pre-defined assessment questions are stored in `app/data/`:
-- `personalityQuestions.ts` - MBTI-style personality assessment
-- `abilityQuestions.ts` - Academic ability questions
-- `multipleIntelligenceQuestions.ts` - Gardner's Multiple Intelligence framework
+Each report generator has its own `requirements.txt`:
+- `report-gen-english/requirements.txt`
+- `report-gen-hindi/requirements.txt`
 
-User responses are saved to Firestore under the user document.
+Install Python dependencies:
+```bash
+cd report-gen-english
+pip install -r requirements.txt
+
+cd ../report-gen-hindi
+pip install -r requirements.txt
+```
+
+## Firebase Architecture
+
+### Collections
+
+- **`users`** - User profiles and assessment responses (read by admin)
+- **`settings`** - Global settings
+- **`payments`** - Payment transaction records (legacy, not actively used)
+
+### Admin Access
+
+- Firebase Admin SDK initialized in `firebase-admin.ts` (root) and `app/firebase-admin.ts`
+- Client-side Firebase configured in `app/firebase.ts`
+- Authentication required to access `/admin/*` routes
+
+## Admin Dashboard Features
+
+The admin dashboard (`/admin/dashboard`) provides:
+
+1. **User Management**:
+   - View all registered users
+   - See assessment completion status
+   - View user details and assessment responses
+
+2. **Report Generation**:
+   - Run data normalizer for English/Hindi
+   - Execute report generation pipelines
+   - Monitor generation progress
+
+3. **Report Management**:
+   - List all generated reports
+   - Download individual reports as PDF
+   - Batch download reports as ZIP
+   - Upload reports to Google Drive
+
+4. **Data Export**:
+   - Export detailed user data to CSV/Excel
+   - View user creation times and statistics
+
+5. **Orphaned User Management**:
+   - View users without proper tenant assignment
+   - Reassign or clean up orphaned accounts
 
 ## Environment Variables
 
 Required in `.env.local`:
 
 ```bash
-# Firebase
+# Firebase (Required)
 FIREBASE_API_KEY=
 FIREBASE_AUTH_DOMAIN=
 FIREBASE_PROJECT_ID=
@@ -219,46 +175,84 @@ FIREBASE_MESSAGING_SENDER_ID=
 FIREBASE_APP_ID=
 FIREBASE_CLIENT_EMAIL=
 FIREBASE_PRIVATE_KEY=
-
-# Razorpay
-RAZORPAY_KEY_ID=
-RAZORPAY_KEY_SECRET=
-NEXT_PUBLIC_RAZORPAY_KEY=
-
-# Calendly
-CALENDLY_API_KEY=
-CALENDLY_ORGANIZATION=
 ```
 
-## Code Structure Patterns
+**Note**: Razorpay and Calendly variables removed as payment and scheduling features have been stripped out.
 
-### Page Components
-- Use Next.js App Router (server components by default)
-- Client components marked with `'use client'`
-- Layouts defined in `layout.tsx` files
+## Code Structure
 
-### Form Components
-- Located in `app/components/`
-- Follow pattern: `[Section]Form.tsx` (e.g., `PersonalityForm.tsx`)
-- State management with React hooks
-- Firebase updates on form submission
+### Component Organization
+
+- `app/components/` - Shared UI components:
+  - `Header.tsx` - Application header
+  - `Footer.tsx` - Application footer
+  - `Input.tsx` - Reusable input component
+  - `LoadingSpinner.tsx` - Loading indicator
+  - `LoginForm.tsx` - Admin login form
+  - `LayoutShell.tsx` - Layout wrapper
+
+- `app/admin/components/` - Admin-specific components
 
 ### Type Definitions
-- Shared types in `app/types.ts`
-- Tenant types in `app/lib/tenant-shared.ts`
 
-## Testing Utilities
+- `app/types.ts` - Shared TypeScript types
 
-Several test pages exist for debugging:
-- `/test-registration` - Test registration flow
-- `/test-errors` - Error handling test page
-- `app/admin/test-dashboard-loop` - Test dashboard rendering
+### Utilities
+
+- `app/utils/` - Utility functions and defaults
+
+## Authentication Flow
+
+1. Admin visits root (`/`)
+2. Auth state checked via Firebase
+3. If authenticated → redirect to `/admin/dashboard`
+4. If not authenticated → redirect to `/login`
+5. After login → redirect to `/admin/dashboard`
+
+## Removed Features
+
+This version has been stripped down from the original multi-tenant assessment platform. The following features have been removed:
+
+- ❌ Multi-tenant system (subdomain-based routing)
+- ❌ User registration and user-facing pages
+- ❌ Assessment questionnaires (Personality, Ability, Values, etc.)
+- ❌ Payment system (Razorpay integration)
+- ❌ Coupon management
+- ❌ Calendly scheduling integration
+- ❌ User dashboard and profile pages
 
 ## Important Notes
 
+- **Single Admin Instance**: No multi-tenancy, single admin dashboard only
+- **No User Registration**: Users are managed directly by admin or imported from data
+- **Report-Focused**: Primary purpose is generating and managing reports
 - **Standalone Output**: Next.js configured with `output: 'standalone'` for Docker deployment
 - **Build Warnings Disabled**: ESLint and TypeScript errors don't block builds (see `next.config.ts`)
-- **Middleware Exclusions**: Middleware doesn't run on `/api/*`, `/_next/*`, or static assets
-- **Multi-tenant DNS**: Production uses subdomain routing (configured in `next.config.ts` rewrites and nginx)
 - **Python Dependencies**: Both English and Hindi report generators have separate `requirements.txt`
-- **Admin Authentication**: Admin passwords stored per-tenant in Firestore, with hardcoded fallbacks for legacy tenants
+- **Admin Authentication**: Single admin login, no multi-user admin system
+
+## Utility Scripts
+
+Available in `scripts/`:
+
+```bash
+# Settings management
+node scripts/initialize-settings.js  # Initialize Firestore settings
+node scripts/check-settings.js       # Verify settings configuration
+
+# User management
+node scripts/check-user.js           # Check user details
+node scripts/delete-users.js         # Delete users
+node scripts/standardize-user-data.js # Standardize user data format
+node scripts/check-unused-firestore.js # Find unused Firestore data
+```
+
+## Docker Deployment
+
+The application is containerized with:
+- **Dockerfile** - Production build with Node.js and Python
+- **Dockerfile.dev** - Development build
+- **docker-compose.yml** - Multi-container setup (app + nginx)
+- **nginx/** - Nginx reverse proxy configuration
+
+The Dockerfile installs both Node.js and Python dependencies and builds the Next.js application for production deployment.
