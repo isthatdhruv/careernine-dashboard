@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
     // your project has type errors.
     ignoreBuildErrors: true,
   },
+  // Empty turbopack config to acknowledge Turbopack usage (Next.js 16 default)
+  turbopack: {},
 };
 
 export default nextConfig;
