@@ -4,8 +4,12 @@ import path from 'path';
 import fs from 'fs/promises';
 import { generatePdfFromHtml } from '@/utils/pdfGenerator';
 import { Readable } from 'stream';
+import { verifyAdmin } from '@/app/lib/admin-auth';
 
 export async function POST(req: NextRequest) {
+  const authError = verifyAdmin(req);
+  if (authError) return authError;
+
   try {
     const body = await req.json();
     const { reportPaths, folderName, parentFolderId } = body;

@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/firebase-admin';
 import * as XLSX from 'xlsx';
+import { verifyAdmin } from '@/app/lib/admin-auth';
 
 export async function GET(request: NextRequest) {
+  const authError = verifyAdmin(request);
+  if (authError) return authError;
+
   try {
     // Get selected UIDs from query parameter (comma-separated)
     const searchParams = request.nextUrl.searchParams;

@@ -4,10 +4,14 @@ import path from 'path';
 import { promisify } from 'util';
 import * as XLSX from 'xlsx';
 import fs from 'fs/promises';
+import { verifyAdmin } from '@/app/lib/admin-auth';
 
 const execAsync = promisify(exec);
 
 export async function POST(req: NextRequest) {
+  const authError = verifyAdmin(req);
+  if (authError) return authError;
+
   try {
     const body = await req.json();
     const { data } = body;
@@ -27,7 +31,7 @@ export async function POST(req: NextRequest) {
          const inputFile = path.join(projectRoot, 'report-gen', 'harvest school.xlsx');
          const command = `"${pythonPath}" "${scriptPath}" "${inputFile}"`;
          console.log('Executing command (default):', command);
-         const { stdout, stderr } = await execAsync(command);
+         const { stdout, stderr } = await execAsync(command, { timeout: 120_000 });
          return NextResponse.json({ success: true, output: stdout, error: stderr });
       }
     }
@@ -59,7 +63,7 @@ export async function POST(req: NextRequest) {
     
     console.log('Executing command:', command);
 
-    const { stdout, stderr } = await execAsync(command);
+    const { stdout, stderr } = await execAsync(command, { timeout: 120_000 });
 
     // Cleanup temp file
     try {

@@ -3,14 +3,22 @@ import fs from 'fs/promises';
 import path from 'path';
 import JSZip from 'jszip';
 import { generatePdfFromHtml } from '@/utils/pdfGenerator';
+import { verifyAdmin } from '@/app/lib/admin-auth';
 
 export async function POST(req: NextRequest) {
+  const authError = verifyAdmin(req);
+  if (authError) return authError;
+
   try {
     const body = await req.json();
     const { reportPaths } = body;
 
     if (!reportPaths || !Array.isArray(reportPaths) || reportPaths.length === 0) {
       return NextResponse.json({ error: 'reportPaths array is required' }, { status: 400 });
+    }
+
+    if (reportPaths.length > 50) {
+      return NextResponse.json({ error: 'Maximum 50 reports per batch' }, { status: 400 });
     }
 
     const zip = new JSZip();

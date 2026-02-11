@@ -12,6 +12,13 @@ import {
   CloudArrowUpIcon
 } from '@heroicons/react/24/outline';
 
+function getAdminPassword(): string {
+  if (typeof window !== 'undefined') {
+    return sessionStorage.getItem('adminPassword') || '';
+  }
+  return '';
+}
+
 // --- Types ---
 interface Report {
   student_name: string; // From Python script
@@ -278,7 +285,9 @@ export default function ReportsPage() {
   const fetchReports = async () => {
     setLoadingReports(true);
     try {
-      const res = await fetch('/api/admin/list-reports');
+      const res = await fetch('/api/admin/list-reports', {
+        headers: { 'X-Admin-Password': getAdminPassword() },
+      });
       const data = await res.json();
       if (data.reports) {
         setReports(data.reports);
@@ -391,7 +400,7 @@ export default function ReportsPage() {
 
       const res = await fetch('/api/admin/run-pipeline-phase', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': getAdminPassword() },
         body: JSON.stringify(payload),
       });
 
@@ -479,7 +488,7 @@ export default function ReportsPage() {
       const reportPaths = Array.from(selectedReports);
       const res = await fetch('/api/admin/download-batch-zip', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': getAdminPassword() },
         body: JSON.stringify({ reportPaths }),
       });
 
@@ -520,7 +529,7 @@ export default function ReportsPage() {
       const reportPaths = Array.from(selectedReports);
       const res = await fetch('/api/admin/upload-to-drive', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': getAdminPassword() },
         body: JSON.stringify({ reportPaths, folderName, parentFolderId }),
       });
 

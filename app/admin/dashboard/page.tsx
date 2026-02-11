@@ -54,13 +54,13 @@ ChartJS.register(
   LineElement
 );
 
-// Fallback passwords for backward compatibility (used only if password not set in Firestore)
-const ADMIN_PASSWORD = "admin2024";
-const ASPIRE_ADMIN_PASSWORD = "C-9-Aspire2025";
-const NBIS_ADMIN_PASSWORD = "Career-9@2025";
-const DALIMSS_ADMIN_PASSWORD = "Career-9@2025";
-const KVS_ADMIN_PASSWORD = "Career-9@2025";
-const DPS_ADMIN_PASSWORD = "Career-9@2025";
+// Admin password is stored in sessionStorage after server-side verification
+function getAdminPassword(): string {
+  if (typeof window !== 'undefined') {
+    return sessionStorage.getItem('adminPassword') || '';
+  }
+  return '';
+}
 interface DashboardStats {
   totalStudents: number;
   assessmentCompletion: {
@@ -644,42 +644,28 @@ const AdminDashboard = () => {
     e.preventDefault();
     setIsLoggingIn(true);
     let loginSuccess = false;
-    
-    // Get password from tenant config (Firestore) or fallback to hardcoded passwords
-    const getPasswordForTenant = (): string | null => {
-      // First, try to get password from Firestore tenant config
-      if (tenantConfig?.settings?.adminPassword) {
-        return tenantConfig.settings.adminPassword;
+
+    try {
+      const tenant = isMainDomain ? 'main' : (currentTenant || 'main');
+      const res = await fetch('/api/admin/verify-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password, tenant }),
+      });
+      const { valid } = await res.json();
+
+      if (valid) {
+        setAuthenticated(true);
+        sessionStorage.setItem('adminPassword', password);
+        localStorage.setItem('adminAuthenticated', 'true');
+        loginSuccess = true;
+      } else {
+        alert('Invalid password');
+        setIsLoggingIn(false);
+        return;
       }
-      
-      // Fallback to hardcoded passwords for backward compatibility
-      if (isMainDomain) {
-        return ADMIN_PASSWORD;
-      } else if (currentTenant === 'aspire') {
-        return ASPIRE_ADMIN_PASSWORD;
-      } else if (currentTenant === 'nbis') {
-        return NBIS_ADMIN_PASSWORD;
-      } else if (currentTenant === 'dalimss') {
-        return DALIMSS_ADMIN_PASSWORD;
-      } else if (currentTenant === 'kvs') {
-        return KVS_ADMIN_PASSWORD;
-      }
-      
-      return null;
-    };
-    
-    const expectedPassword = getPasswordForTenant();
-    
-    if (expectedPassword && password === expectedPassword) {
-      setAuthenticated(true);
-      localStorage.setItem('adminAuthenticated', 'true');
-      loginSuccess = true;
-    } else if (currentTenant === 'dps' && password === DPS_ADMIN_PASSWORD) {
-      setAuthenticated(true);
-      localStorage.setItem('adminAuthenticated', 'true');
-      loginSuccess = true;
-    } else {
-      alert('Invalid password');
+    } catch {
+      alert('Login failed. Please try again.');
       setIsLoggingIn(false);
       return;
     }
@@ -932,7 +918,7 @@ const AdminDashboard = () => {
       appendLog(phase, "Fetching prompts from backend...\n");
       const fetchResponse = await fetch('/api/admin/run-pipeline-phase', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': getAdminPassword() },
         body: JSON.stringify({ phase, language, action: 'fetch_prompts' }),
       });
       
@@ -943,62 +929,51 @@ const AdminDashboard = () => {
       }
       
       const prompts = fetchResult.prompts;
-      // Hardcoded API Key as requested
-      const apiKey = "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";
-      
+      const adminPwd = getAdminPassword();
+
       if (!prompts || prompts.length === 0) {
         appendLog(phase, "No students need processing (all cached or skipped).\n");
         setStatus(phase, 'success');
         return true;
       }
-      
+
       appendLog(phase, `Received ${prompts.length} students to process.\n`);
-      
-      // Step 2: Process with OpenAI
+
+      // Step 2: Process with OpenAI via server-side proxy
       const results = [];
       let processedCount = 0;
-      
+
       for (const item of prompts) {
         appendLog(phase, `Processing ${item.name}...\n`);
-        
+
         try {
-          // AI Summary
-          const aiSummaryRes = await fetch("https://api.openai.com/v1/chat/completions", {
+          // AI Summary (via server-side route)
+          const aiSummaryRes = await fetch("/api/admin/ai-summary", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${apiKey}`
+              "X-Admin-Password": adminPwd,
             },
-            body: JSON.stringify({
-              model: "gpt-4o",
-              messages: [{ role: "user", content: item.ai_summary_prompt }],
-              temperature: 1,
-              max_tokens: 2048
-            })
+            body: JSON.stringify({ prompt: item.ai_summary_prompt })
           });
-          
+
           const aiSummaryData = await aiSummaryRes.json();
-          // Fix: .strip() is Python, use .trim() in JS
-          const aiSummary = (aiSummaryData.choices?.[0]?.message?.content || "").replace(/\*\*\*/g, "").trim();
-          
-          // Learning Style Summary
-          const learningSummaryRes = await fetch("https://api.openai.com/v1/chat/completions", {
+          if (!aiSummaryRes.ok) throw new Error(aiSummaryData.error || "AI summary failed");
+          const aiSummary = aiSummaryData.content || "";
+
+          // Learning Style Summary (via server-side route)
+          const learningSummaryRes = await fetch("/api/admin/ai-summary", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${apiKey}`
+              "X-Admin-Password": adminPwd,
             },
-            body: JSON.stringify({
-              model: "gpt-4o",
-              messages: [{ role: "user", content: item.learning_style_prompt }],
-              temperature: 1,
-              max_tokens: 2048
-            })
+            body: JSON.stringify({ prompt: item.learning_style_prompt })
           });
-          
+
           const learningSummaryData = await learningSummaryRes.json();
-          // Fix: .strip() is Python, use .trim() in JS
-          const learningSummary = (learningSummaryData.choices?.[0]?.message?.content || "").replace(/\*\*\*/g, "").trim();
+          if (!learningSummaryRes.ok) throw new Error(learningSummaryData.error || "Learning summary failed");
+          const learningSummary = learningSummaryData.content || "";
           
           results.push({
             student_id: item.student_id,
@@ -1018,7 +993,7 @@ const AdminDashboard = () => {
       appendLog(phase, `Saving ${results.length} results to backend...\n`);
       const saveResponse = await fetch('/api/admin/run-pipeline-phase', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': getAdminPassword() },
         body: JSON.stringify({ phase, language, action: 'save_results', results }),
       });
       
@@ -1056,7 +1031,7 @@ const AdminDashboard = () => {
 
       const response = await fetch('/api/admin/run-pipeline-phase', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Admin-Password': getAdminPassword() },
         body: JSON.stringify(body),
       });
 
@@ -1108,7 +1083,9 @@ const AdminDashboard = () => {
   const fetchReports = async () => {
     setLoadingReports(true);
     try {
-      const response = await fetch('/api/admin/list-reports');
+      const response = await fetch('/api/admin/list-reports', {
+        headers: { 'X-Admin-Password': getAdminPassword() },
+      });
       const data = await response.json();
       if (data.reports) {
         setGeneratedReports(data.reports);

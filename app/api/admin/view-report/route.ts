@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs/promises';
 import path from 'path';
+import { verifyAdmin } from '@/app/lib/admin-auth';
 
 export async function GET(req: NextRequest) {
+  const authError = verifyAdmin(req);
+  if (authError) return authError;
+
   try {
     const { searchParams } = new URL(req.url);
     const reportPath = searchParams.get('path');

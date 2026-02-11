@@ -4,6 +4,7 @@ import path from 'path';
 import { promisify } from 'util';
 import * as XLSX from 'xlsx';
 import fs from 'fs/promises';
+import { verifyAdmin } from '@/app/lib/admin-auth';
 
 const execAsync = promisify(exec);
 
@@ -19,6 +20,9 @@ const PHASE_CONFIG: Record<number, { script: string; description: string; valida
 };
 
 export async function POST(req: NextRequest) {
+  const authError = verifyAdmin(req);
+  if (authError) return authError;
+
   try {
     const body = await req.json();
     const { phase, data, language, action, results } = body;
@@ -112,7 +116,7 @@ export async function POST(req: NextRequest) {
     console.log(`Executing Phase ${phase} (${config.description}):`, command);
 
     // Execute the main script
-    const { stdout, stderr } = await execAsync(command, { cwd: reportGenDir });
+    const { stdout, stderr } = await execAsync(command, { cwd: reportGenDir, timeout: 300_000 });
     
     let output = stdout;
     let error = stderr;
@@ -144,7 +148,7 @@ export async function POST(req: NextRequest) {
       console.log(`Running validation for Phase ${phase}:`, valCommand);
       
       try {
-        const valResult = await execAsync(valCommand, { cwd: reportGenDir });
+        const valResult = await execAsync(valCommand, { cwd: reportGenDir, timeout: 120_000 });
         output += '\n\n--- Validation Output ---\n' + valResult.stdout;
         if (valResult.stderr) {
           error += '\nValidation Error: ' + valResult.stderr;

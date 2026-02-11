@@ -1,23 +1,13 @@
-import { NextResponse } from 'next/server';
-import { cert, getApps, initializeApp } from 'firebase-admin/app';
-import { getAuth, UserRecord } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
-
-if (!getApps().length) {
-  initializeApp({
-    credential: cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
-  });
-}
+import { NextRequest, NextResponse } from 'next/server';
+import { db } from '@/firebase-admin';
+import { getAuth } from 'firebase-admin/auth';
+import { verifyAdmin } from '@/app/lib/admin-auth';
 
 const auth = getAuth();
-const firestore = getFirestore();
+const firestore = db;
 
-const listAllAuthUsers = async (): Promise<UserRecord[]> => {
-  const users: UserRecord[] = [];
+const listAllAuthUsers = async (): Promise<any[]> => {
+  const users: any[] = [];
 
   let pageToken: string | undefined;
 
@@ -30,7 +20,10 @@ const listAllAuthUsers = async (): Promise<UserRecord[]> => {
   return users;
 };
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const authError = verifyAdmin(req);
+  if (authError) return authError;
+
   try {
     const authUsers = await listAllAuthUsers();
     const firestoreSnapshot = await firestore.collection('users').get();
@@ -84,7 +77,10 @@ export async function GET() {
   }
 }
 
-export async function DELETE(request: Request) {
+export async function DELETE(request: NextRequest) {
+  const authError = verifyAdmin(request);
+  if (authError) return authError;
+
   try {
     const { uid, target = 'auth' } = await request.json();
 
