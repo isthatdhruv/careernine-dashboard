@@ -231,14 +231,30 @@ interface TenantConfig {
   subdomain: string;
   features: {
     enablePayments: boolean;
+    enableControlNumberAuth?: boolean;
   };
 }
 
+function getSubdomain() {
+  if (typeof window === 'undefined') return '';
+  const host = window.location.host;
+  const [hostname] = host.split(':');
+  const parts = hostname.split('.');
+  if (hostname === 'localhost') return 'localhost';
+  if (parts.length === 2 && parts[1] === 'localhost') return parts[0];
+  if (parts.length === 3) return parts[0];
+  if (parts.length === 2) return '';
+  return '';
+}
+
 const RegisterForm = () => {
+  const isKvs = getSubdomain() === 'kvs';
+
   const [formData, setFormData] = useState({
     // Personal Info
     name: '',
     email: '',
+    controlNumber: '',
     password: '',
     phone: '',
     countryCode: '+91',
@@ -540,12 +556,35 @@ const RegisterForm = () => {
   };
 
   const validateForm = () => {
-    // Sanitize email before validation
-    const sanitizedEmail = sanitizeEmail(formData.email);
-    
-    if (!sanitizedEmail || !formData.password || !formData.name || !formData.dob || !formData.gender || !formData.schoolType || !formData.school || !formData.studentClass || !formData.phone || !formData.consentGiven) {
-      setError('Please fill in all required fields.');
-      return false;
+    if (isKvs) {
+      // KVS mode: require control number instead of email
+      if (!formData.controlNumber || !formData.password || !formData.name || !formData.dob || !formData.gender || !formData.schoolType || !formData.school || !formData.studentClass || !formData.phone || !formData.consentGiven) {
+        setError('Please fill in all required fields.');
+        return false;
+      }
+
+      if (!formData.controlNumber.trim()) {
+        setError('Please enter your control number.');
+        return false;
+      }
+    } else {
+      // Standard mode: require email
+      const sanitizedEmail = sanitizeEmail(formData.email);
+
+      if (!sanitizedEmail || !formData.password || !formData.name || !formData.dob || !formData.gender || !formData.schoolType || !formData.school || !formData.studentClass || !formData.phone || !formData.consentGiven) {
+        setError('Please fill in all required fields.');
+        return false;
+      }
+
+      if (!validateEmail(sanitizedEmail)) {
+        setError('Please enter a valid email address. Use only letters (a-z), numbers (0-9), dots (.), underscores (_), plus signs (+), hyphens (-), and @ symbol. Example: john.doe@example.com');
+        return false;
+      }
+
+      // Update formData with sanitized email
+      if (sanitizedEmail !== formData.email) {
+        setFormData(prev => ({ ...prev, email: sanitizedEmail }));
+      }
     }
 
     // Validate name - check for invalid characters
@@ -559,11 +598,6 @@ const RegisterForm = () => {
       return false;
     }
 
-    if (!validateEmail(sanitizedEmail)) {
-      setError('Please enter a valid email address. Use only letters (a-z), numbers (0-9), dots (.), underscores (_), plus signs (+), hyphens (-), and @ symbol. Example: john.doe@example.com');
-      return false;
-    }
-
     if (formData.password.length < 8) {
       setError('Password must be at least 8 characters long.');
       return false;
@@ -572,11 +606,6 @@ const RegisterForm = () => {
     if (!/^\d{10}$/.test(formData.phone)) {
       setError('Please enter a valid 10-digit phone number. Use only digits (0-9), no spaces, dashes, or parentheses.');
       return false;
-    }
-
-    // Update formData with sanitized email
-    if (sanitizedEmail !== formData.email) {
-      setFormData(prev => ({ ...prev, email: sanitizedEmail }));
     }
 
     return true;
@@ -666,14 +695,15 @@ const RegisterForm = () => {
         let user: any = null;
         try {
         // Create user account with Firebase
+        const registrationEmail = isKvs ? `${formData.controlNumber.trim().toLowerCase()}@kvs.internal` : formData.email;
         const userCredential = await createUserWithEmailAndPassword(
           auth,
-          formData.email,
+          registrationEmail,
           formData.password
         );
         user = userCredential.user;
         await updateProfile(user, { displayName: sanitizeName(formData.name) });
-        
+
         // Create user data in Firestore
         const educationalData: Record<string, any> = {
             school: formData.school,
@@ -690,10 +720,10 @@ const RegisterForm = () => {
           educationalData.section = formData.section;
         }
 
-        const userData = {
+        const userData: Record<string, any> = {
           personal: {
             name: formData.name,
-            email: formData.email,
+            email: registrationEmail,
             phone: formData.phone,
             countryCode: formData.countryCode,
             dob: formData.dob,
@@ -710,6 +740,12 @@ const RegisterForm = () => {
           updatedAt: new Date(),
           tenant: tenantConfig?.subdomain || window.location.host.split('.')[0] || 'default',
         };
+
+        // Store KVS-specific fields
+        if (isKvs) {
+          userData.controlNumber = formData.controlNumber;
+          userData.plaintextPassword = formData.password;
+        }
           console.log('Saving user data to Firestore for user:', user.uid);
           console.log('User data to save:', JSON.stringify(userData, null, 2));
         
@@ -778,10 +814,11 @@ const RegisterForm = () => {
           } else if (error.code === 'auth/email-already-in-use') {
             // Check if this might be an orphaned account (auth exists but no Firestore doc)
             let isOrphanedAccount = false;
+            const checkEmail = isKvs ? `${formData.controlNumber.trim().toLowerCase()}@kvs.internal` : formData.email;
             try {
               // Try to sign in to check if account exists
               // If sign-in succeeds but no document, it's orphaned
-              const testSignIn = await signInWithEmailAndPassword(auth, formData.email, formData.password);
+              const testSignIn = await signInWithEmailAndPassword(auth, checkEmail, formData.password);
               const userDoc = await getDoc(doc(db, 'users', testSignIn.user.uid));
               if (!userDoc.exists()) {
                 // Orphaned account detected - sign out and allow retry
@@ -800,7 +837,9 @@ const RegisterForm = () => {
             if (isOrphanedAccount) {
               errorDetails = {
                 title: 'Incomplete Account Detected',
-                message: 'We found an incomplete account with this email. This usually happens when a previous registration didn\'t complete successfully. We\'ve cleaned it up for you.',
+                message: isKvs
+                  ? 'We found an incomplete account with this control number. This usually happens when a previous registration didn\'t complete successfully. We\'ve cleaned it up for you.'
+                  : 'We found an incomplete account with this email. This usually happens when a previous registration didn\'t complete successfully. We\'ve cleaned it up for you.',
                 nextSteps: [
                   'The incomplete account has been removed',
                   'You can now register again with this email',
@@ -1223,15 +1262,27 @@ const RegisterForm = () => {
               required
               className="bg-gray-50"
             />
-            <Input
-              type="email"
-              placeholder="Email Address*"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              className="bg-gray-50"
-            />
+            {isKvs ? (
+              <Input
+                type="text"
+                placeholder="Control Number*"
+                name="controlNumber"
+                value={formData.controlNumber}
+                onChange={handleChange}
+                required
+                className="bg-gray-50"
+              />
+            ) : (
+              <Input
+                type="email"
+                placeholder="Email Address*"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+                className="bg-gray-50"
+              />
+            )}
             <div className="relative">
               <Input
                 type={showPassword ? "text" : "password"}

@@ -6,6 +6,7 @@ export interface TenantConfig {
   features: {
     enablePayments: boolean;
     enableCalendly: boolean;
+    enableControlNumberAuth: boolean;
   };
   settings: {
     calendlyUrl?: string;
@@ -22,6 +23,7 @@ export const DEFAULT_TENANT_CONFIG: TenantConfig = {
   features: {
     enablePayments: false,
     enableCalendly: false,
+    enableControlNumberAuth: false,
   },
   settings: {
     calendlyUrl: 'https://calendly.com/prasad-khake-career-9/30min',

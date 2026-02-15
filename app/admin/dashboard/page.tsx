@@ -29,6 +29,8 @@ import {
   ArrowUpIcon,
   ArrowDownIcon,
   EyeIcon,
+  EyeSlashIcon,
+  KeyIcon,
   ChartBarIcon,
   ChartPieIcon,
   UsersIcon,
@@ -122,6 +124,8 @@ interface StudentData {
     };
   };
   tenant: string;
+  controlNumber?: string;
+  plaintextPassword?: string;
 }
 
 type SortField = 'name' | 'class' | 'school' | 'status' | 'joined' | 'tenant';
@@ -193,6 +197,14 @@ const AdminDashboard = () => {
   // Debounce search term
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // KVS Students tab
+  const [activeTab, setActiveTab] = useState<'overview' | 'kvs-students'>('overview');
+  const [kvsSearchTerm, setKvsSearchTerm] = useState('');
+  const [visiblePasswords, setVisiblePasswords] = useState<Set<string>>(new Set());
+  const [resettingPassword, setResettingPassword] = useState<string | null>(null);
+  const [resetPasswordUid, setResetPasswordUid] = useState<string | null>(null);
+  const [newPassword, setNewPassword] = useState('');
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -433,7 +445,9 @@ const AdminDashboard = () => {
                 personality: data.personalityScores || {},
                 multipleIntelligence: data.multipleIntelligenceScores || {}
               },
-              tenant: data.tenant || ''
+              tenant: data.tenant || '',
+              controlNumber: data.controlNumber,
+              plaintextPassword: data.plaintextPassword,
             });
           }
         }
@@ -464,7 +478,9 @@ const AdminDashboard = () => {
                 personality: data.personalityScores || {},
                 multipleIntelligence: data.multipleIntelligenceScores || {}
               },
-              tenant: data.tenant || ''
+              tenant: data.tenant || '',
+              controlNumber: data.controlNumber,
+              plaintextPassword: data.plaintextPassword,
             });
           }
         }
@@ -554,6 +570,60 @@ const AdminDashboard = () => {
       }
     });
   }, [students, selectedClass, debouncedSearchTerm, statusFilter, tenantFilter, sortField, sortOrder]);
+
+  // KVS students filtered list
+  const kvsStudents = useMemo(() => {
+    return students
+      .filter(student => {
+        if (student.tenant !== 'kvs') return false;
+        if (!kvsSearchTerm) return true;
+        const term = kvsSearchTerm.toLowerCase();
+        return (
+          (student.controlNumber || '').toLowerCase().includes(term) ||
+          student.personal.name.toLowerCase().includes(term)
+        );
+      })
+      .sort((a, b) => a.personal.name.localeCompare(b.personal.name));
+  }, [students, kvsSearchTerm]);
+
+  const togglePasswordVisibility = useCallback((uid: string) => {
+    setVisiblePasswords(prev => {
+      const next = new Set(prev);
+      if (next.has(uid)) {
+        next.delete(uid);
+      } else {
+        next.add(uid);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleResetPassword = useCallback(async (uid: string, password: string) => {
+    setResettingPassword(uid);
+    try {
+      const response = await fetch('/api/kvs-auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uid, newPassword: password }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        alert(`Error: ${data.error}`);
+        return;
+      }
+      // Update local state
+      setStudents(prev =>
+        prev.map(s => (s.uid === uid ? { ...s, plaintextPassword: password } : s))
+      );
+      setResetPasswordUid(null);
+      setNewPassword('');
+      alert('Password reset successfully');
+    } catch (err: any) {
+      alert(`Error resetting password: ${err.message}`);
+    } finally {
+      setResettingPassword(null);
+    }
+  }, []);
 
   // Handle student selection - memoized for performance
   const handleStudentSelect = useCallback((studentId: string) => {
@@ -1254,6 +1324,155 @@ const AdminDashboard = () => {
           </div>
         </div>
 
+        {/* Tab Bar - Only for KVS */}
+        {currentTenant === 'kvs' && (
+          <div className="mb-6 border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              <button
+                onClick={() => setActiveTab('overview')}
+                className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'overview'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                Overview
+              </button>
+              <button
+                onClick={() => setActiveTab('kvs-students')}
+                className={`py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
+                  activeTab === 'kvs-students'
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                KVS Students
+              </button>
+            </nav>
+          </div>
+        )}
+
+        {/* KVS Students Tab Content */}
+        {currentTenant === 'kvs' && activeTab === 'kvs-students' && (
+          <div className="bg-white rounded-lg shadow">
+            <div className="p-6 border-b">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <h2 className="text-xl font-semibold text-gray-900">KVS Students</h2>
+                <div className="relative w-full md:w-64">
+                  <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search by control number or name..."
+                    value={kvsSearchTerm}
+                    onChange={(e) => setKvsSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Control Number</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Class</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Password</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {kvsStudents.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                        {kvsSearchTerm ? 'No students match your search.' : 'No KVS students found.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    kvsStudents.map((student) => (
+                      <tr key={student.uid} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {student.controlNumber || '—'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                          {student.personal.name}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                          {student.educational.studentClass}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                          {student.plaintextPassword ? (
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono">
+                                {visiblePasswords.has(student.uid)
+                                  ? student.plaintextPassword
+                                  : '••••••••'}
+                              </span>
+                              <button
+                                onClick={() => togglePasswordVisibility(student.uid)}
+                                className="text-gray-400 hover:text-gray-600"
+                                title={visiblePasswords.has(student.uid) ? 'Hide password' : 'Show password'}
+                              >
+                                {visiblePasswords.has(student.uid) ? (
+                                  <EyeSlashIcon className="h-4 w-4" />
+                                ) : (
+                                  <EyeIcon className="h-4 w-4" />
+                                )}
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 italic">Not stored</span>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          {resetPasswordUid === student.uid ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                placeholder="New password"
+                                className="border border-gray-300 rounded px-2 py-1 text-sm w-32 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              />
+                              <button
+                                onClick={() => handleResetPassword(student.uid, newPassword)}
+                                disabled={!newPassword || newPassword.length < 8 || resettingPassword === student.uid}
+                                className="px-2 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {resettingPassword === student.uid ? 'Saving...' : 'Save'}
+                              </button>
+                              <button
+                                onClick={() => { setResetPasswordUid(null); setNewPassword(''); }}
+                                className="px-2 py-1 text-xs font-medium text-gray-600 bg-gray-200 rounded hover:bg-gray-300"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setResetPasswordUid(student.uid)}
+                              className="inline-flex items-center gap-1 px-3 py-1 text-xs font-medium text-white bg-orange-500 rounded hover:bg-orange-600 transition-colors"
+                            >
+                              <KeyIcon className="h-3 w-3" />
+                              Reset Password
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="px-6 py-3 border-t text-sm text-gray-500">
+              {kvsStudents.length} student{kvsStudents.length !== 1 ? 's' : ''}
+            </div>
+          </div>
+        )}
+
+        {/* Overview Tab Content (default) */}
+        {(currentTenant !== 'kvs' || activeTab === 'overview') && (
+        <>
         {/* Simple Data Filters - Only for Master Admin */}
         {isMainDomain && (
           <div className="mb-6">
@@ -2355,6 +2574,8 @@ const AdminDashboard = () => {
               </div>
             </div>
           </div>
+        )}
+        </>
         )}
       </div>
     </div>
