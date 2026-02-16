@@ -34,7 +34,11 @@ const LoginForm = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const errorMessage = searchParams.get('error');
-  const isKvs = getSubdomain() === 'kvs';
+  const [isKvs, setIsKvs] = useState(false);
+
+  useEffect(() => {
+    setIsKvs(getSubdomain() === 'kvs');
+  }, []);
 
   useEffect(() => {
     if (errorMessage) setError(errorMessage);

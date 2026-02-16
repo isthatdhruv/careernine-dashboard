@@ -248,7 +248,13 @@ function getSubdomain() {
 }
 
 const RegisterForm = () => {
-  const isKvs = getSubdomain() === 'kvs';
+  const [isKvs, setIsKvs] = useState(false);
+  const [subdomainReady, setSubdomainReady] = useState(false);
+
+  useEffect(() => {
+    setIsKvs(getSubdomain() === 'kvs');
+    setSubdomainReady(true);
+  }, []);
 
   const [formData, setFormData] = useState({
     // Personal Info
@@ -1262,7 +1268,7 @@ const RegisterForm = () => {
               required
               className="bg-gray-50"
             />
-            {isKvs ? (
+            {subdomainReady && (isKvs ? (
               <Input
                 type="text"
                 placeholder="Control Number*"
@@ -1270,6 +1276,7 @@ const RegisterForm = () => {
                 value={formData.controlNumber}
                 onChange={handleChange}
                 required
+                autoComplete="off"
                 className="bg-gray-50"
               />
             ) : (
@@ -1282,7 +1289,7 @@ const RegisterForm = () => {
                 required
                 className="bg-gray-50"
               />
-            )}
+            ))}
             <div className="relative">
               <Input
                 type={showPassword ? "text" : "password"}
