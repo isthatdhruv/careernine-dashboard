@@ -276,6 +276,30 @@ if args.export_prompts:
             'learning_style_prompt': learning_style_prompt
         })
         
+    # If no prompts needed (all cached/already done), restore cached values into Excel
+    if len(prompts_data) == 0:
+        print("All students already processed. Restoring cached summaries to Excel...", flush=True)
+        restored = 0
+        for idx, row in df.iterrows():
+            student_id = get_student_id(row)
+            if is_blank(row.get('AI_Summary', '')) or is_blank(row.get('Learning_Style_Summary', '')):
+                cached = load_cache(student_id)
+                if cached:
+                    if is_blank(row.get('AI_Summary', '')) and cached.get('ai_summary'):
+                        df.at[idx, 'AI_Summary'] = cached['ai_summary']
+                    if is_blank(row.get('Learning_Style_Summary', '')) and cached.get('learning_style_summary'):
+                        df.at[idx, 'Learning_Style_Summary'] = cached['learning_style_summary']
+                    restored += 1
+        if restored > 0:
+            with pd.ExcelWriter(INPUT_FILE, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+                df.to_excel(writer, sheet_name=SHEET_NAME, index=False)
+            print(f"  ✅ Restored {restored} cached summaries to Excel", flush=True)
+        else:
+            # Still save to ensure columns exist in the sheet
+            with pd.ExcelWriter(INPUT_FILE, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+                df.to_excel(writer, sheet_name=SHEET_NAME, index=False)
+            print("  ✅ Ensured AI_Summary and Learning_Style_Summary columns exist in Excel", flush=True)
+
     print(f"JSON_RESULT:{json.dumps(prompts_data)}", flush=True)
     exit(0)
 

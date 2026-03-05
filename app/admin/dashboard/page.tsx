@@ -429,6 +429,23 @@ const AdminDashboard = () => {
   // Student selection states
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
   const [tenantFilter, setTenantFilter] = useState<string>('all');
+  const [schoolFilter, setSchoolFilter] = useState<string>('all');
+  const [schoolTypeFilter, setSchoolTypeFilter] = useState<string>('all');
+  const [sectionFilter, setSectionFilter] = useState<string>('all');
+
+  // Derive unique values for education filters
+  const availableSchools = useMemo(() =>
+    [...new Set(students.map(s => s.educational.school).filter(Boolean))].sort(),
+    [students]
+  );
+  const availableSchoolTypes = useMemo(() =>
+    [...new Set(students.map(s => s.educational.schoolType).filter(Boolean))].sort(),
+    [students]
+  );
+  const availableSections = useMemo(() =>
+    [...new Set(students.map(s => s.educational.section).filter((s): s is string => !!s))].sort(),
+    [students]
+  );
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -743,12 +760,24 @@ const AdminDashboard = () => {
   const filteredStudents = students
     .filter(student => {
       const matchesClass = selectedClass === 'all' || student.educational.studentClass === selectedClass;
-      const matchesSearch = searchTerm === '' || 
-        student.personal.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        student.personal.email.toLowerCase().includes(searchTerm.toLowerCase());
+      const term = searchTerm.toLowerCase();
+      const matchesSearch = searchTerm === '' ||
+        student.personal.name.toLowerCase().includes(term) ||
+        student.personal.email.toLowerCase().includes(term) ||
+        student.educational.school?.toLowerCase().includes(term) ||
+        student.educational.section?.toLowerCase().includes(term) ||
+        student.educational.schoolType?.toLowerCase().includes(term) ||
+        student.educational.fatherOccupation?.toLowerCase().includes(term) ||
+        student.educational.motherOccupation?.toLowerCase().includes(term) ||
+        student.educational.topHighScoringSubjects?.toLowerCase().includes(term) ||
+        student.educational.activities?.toLowerCase().includes(term) ||
+        student.educational.hobbies?.toLowerCase().includes(term);
       const matchesStatus = statusFilter === 'all' || getAssessmentStatus(student) === statusFilter;
       const matchesTenant = tenantFilter === 'all' || student.tenant === tenantFilter;
-      return matchesClass && matchesSearch && matchesStatus && matchesTenant;
+      const matchesSchool = schoolFilter === 'all' || student.educational.school === schoolFilter;
+      const matchesSchoolType = schoolTypeFilter === 'all' || student.educational.schoolType === schoolTypeFilter;
+      const matchesSection = sectionFilter === 'all' || student.educational.section === sectionFilter;
+      return matchesClass && matchesSearch && matchesStatus && matchesTenant && matchesSchool && matchesSchoolType && matchesSection;
     })
     .sort((a, b) => {
       const order = sortOrder === 'asc' ? 1 : -1;
@@ -2401,13 +2430,56 @@ const AdminDashboard = () => {
                   <option value="In Progress">In Progress</option>
                   <option value="Not Started">Not Started</option>
                 </select>
+                <select
+                  value={schoolFilter}
+                  onChange={(e) => {
+                    setSchoolFilter(e.target.value);
+                    setSelectedStudents(new Set());
+                  }}
+                  className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm max-w-[200px]"
+                >
+                  <option value="all">All Schools</option>
+                  {availableSchools.map(school => (
+                    <option key={school} value={school}>{school}</option>
+                  ))}
+                </select>
+                {availableSchoolTypes.length > 1 && (
+                  <select
+                    value={schoolTypeFilter}
+                    onChange={(e) => {
+                      setSchoolTypeFilter(e.target.value);
+                      setSelectedStudents(new Set());
+                    }}
+                    className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+                  >
+                    <option value="all">All School Types</option>
+                    {availableSchoolTypes.map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
+                  </select>
+                )}
+                {availableSections.length > 1 && (
+                  <select
+                    value={sectionFilter}
+                    onChange={(e) => {
+                      setSectionFilter(e.target.value);
+                      setSelectedStudents(new Set());
+                    }}
+                    className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+                  >
+                    <option value="all">All Sections</option>
+                    {availableSections.map(section => (
+                      <option key={section} value={section}>Section {section}</option>
+                    ))}
+                  </select>
+                )}
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
                   </div>
                   <input
                     type="text"
-                    placeholder="Search students..."
+                    placeholder="Search by name, email, school, hobbies..."
                     value={searchTerm}
                     onChange={(e) => {
                       setSearchTerm(e.target.value);

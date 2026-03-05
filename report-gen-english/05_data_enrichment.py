@@ -57,6 +57,41 @@ df = pd.read_excel(INPUT_FILE, sheet_name='suitability_index')
 
 print(f"  ✅ Loaded {len(df)} students with {len(df.columns)} columns")
 
+# Ensure Phase 4 columns exist (may be absent if Phase 4 was skipped)
+for col in ['AI_Summary', 'Learning_Style_Summary']:
+    if col not in df.columns:
+        df[col] = ''
+        print(f"  {Colors.YELLOW}⚠️  Column '{col}' missing from input (Phase 4 may have been skipped). Created empty column.{Colors.END}")
+
+# Restore from ai_cache if AI_Summary/Learning_Style_Summary are blank
+ai_cache_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ai_cache')
+if os.path.isdir(ai_cache_dir):
+    blank_count = df['AI_Summary'].apply(lambda x: pd.isna(x) or str(x).strip() in ('', 'nan')).sum()
+    if blank_count > 0:
+        print(f"  {Colors.YELLOW}⚠️  {blank_count} students have blank AI summaries. Attempting to restore from ai_cache...{Colors.END}")
+        restored = 0
+        for idx, row in df.iterrows():
+            ai_blank = pd.isna(row.get('AI_Summary', '')) or str(row.get('AI_Summary', '')).strip() in ('', 'nan')
+            ls_blank = pd.isna(row.get('Learning_Style_Summary', '')) or str(row.get('Learning_Style_Summary', '')).strip() in ('', 'nan')
+            if ai_blank or ls_blank:
+                school = str(row.get('School', '') or '').strip().lower()
+                name = str(row.get('Name', '') or '').strip().lower()
+                cls = str(row.get('Class', '') or '').strip().lower()
+                student_id = f"{name}__class_{cls}__school_{school}".replace(' ', '_')
+                cache_file = os.path.join(ai_cache_dir, f"{student_id}.json")
+                if os.path.exists(cache_file):
+                    try:
+                        with open(cache_file, 'r') as cf:
+                            cached = json.load(cf)
+                        if ai_blank and cached.get('ai_summary'):
+                            df.at[idx, 'AI_Summary'] = cached['ai_summary']
+                        if ls_blank and cached.get('learning_style_summary'):
+                            df.at[idx, 'Learning_Style_Summary'] = cached['learning_style_summary']
+                        restored += 1
+                    except Exception:
+                        pass
+        print(f"  ✅ Restored {restored} summaries from ai_cache")
+
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
@@ -374,6 +409,8 @@ for i in range(1, 4):
 
 if 'Learning_Style_Summary' in df.columns:
     df['Learning Style Summary'] = df['Learning_Style_Summary']
+else:
+    df['Learning Style Summary'] = ''
 
 # Add enjoys/struggles mapping
 enjoys_mapping = {
