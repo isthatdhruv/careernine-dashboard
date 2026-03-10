@@ -2,16 +2,14 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
-  eslint: {
-    // Warning: This allows production builds to successfully complete even if
-    // your project has ESLint errors.
-    ignoreDuringBuilds: true,
-  },
+
   typescript: {
     // Warning: This allows production builds to successfully complete even if
     // your project has type errors.
     ignoreBuildErrors: true,
   },
+  serverExternalPackages: ['firebase-admin'],
+  turbopack: {},
   async rewrites() {
     return [
       {
@@ -41,6 +39,17 @@ const nextConfig: NextConfig = {
           {
             type: 'host',
             value: 'dalimss.localhost:3000',
+          },
+        ],
+      },
+      // Merged from next.config.js
+      {
+        source: '/:path*',
+        destination: '/:path*',
+        has: [
+          {
+            type: 'host',
+            value: 'aspire.career-9.com',
           },
         ],
       },

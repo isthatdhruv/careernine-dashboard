@@ -273,6 +273,7 @@ export default function ReportsPage() {
   const [isNormalizing, setIsNormalizing] = useState(false);
   const [pipelineState, setPipelineState] = useState<{[key: number]: { status: 'pending' | 'running' | 'success' | 'error', logs: string }}>({});
   const [showPipelineModal, setShowPipelineModal] = useState(false);
+  const [stopAfterPhase5, setStopAfterPhase5] = useState(false);
 
   // Fetch Reports
   const fetchReports = async () => {
@@ -428,11 +429,23 @@ export default function ReportsPage() {
 
       // Phases 1-6
       for (let i = 1; i <= 6; i++) {
+        if (stopAfterPhase5 && i === 6) {
+           console.log("Stopping after Phase 5 as requested.");
+           // Trigger download
+           const link = document.createElement('a');
+           link.href = `/api/admin/download-pipeline-file?language=${language}&file=input.xlsx`;
+           // Browser will handle filename from header, but we can hint
+           link.click();
+           break;
+        }
+
         const success = await runPhase(i, language);
         if (!success) throw new Error(`Phase ${i} failed`);
       }
 
-      fetchReports(); // Refresh list
+      if (!stopAfterPhase5) {
+        fetchReports(); // Refresh list only if full generation (Phase 6) ran
+      }
     } catch (error: any) {
       console.error("Pipeline stopped due to error:", error);
     } finally {
@@ -876,7 +889,16 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            <div className="p-6 border-t bg-gray-50 flex justify-end space-x-4">
+            <div className="p-6 border-t bg-gray-50 flex justify-end space-x-4 items-center">
+              <label className="flex items-center space-x-2 text-sm text-gray-700 mr-4">
+                <input
+                  type="checkbox"
+                  checked={stopAfterPhase5}
+                  onChange={(e) => setStopAfterPhase5(e.target.checked)}
+                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span>Run only until Data Enrichment (Phase 5) & Download Master Sheet</span>
+              </label>
               <button
                 onClick={handleDownloadMasterSheet}
                 className="px-4 py-2 bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 flex items-center"
