@@ -78,11 +78,13 @@ df = pd.read_excel(INPUT_FILE, sheet_name=SHEET_NAME)
 
 print(f"  ✅ Loaded {len(df)} students from {INPUT_FILE} [{SHEET_NAME}]", flush=True)
 
-# Ensure output columns exist
+# Ensure output columns exist and are string type
 if 'AI_Summary' not in df.columns:
     df['AI_Summary'] = ''
 if 'Learning_Style_Summary' not in df.columns:
     df['Learning_Style_Summary'] = ''
+df['AI_Summary'] = df['AI_Summary'].astype(object).fillna('')
+df['Learning_Style_Summary'] = df['Learning_Style_Summary'].astype(object).fillna('')
 
 # Prepare cache/progress
 AI_CACHE_DIR = Path('ai_cache')
@@ -94,8 +96,22 @@ AI_PROGRESS_CSV = Path('ai_progress.csv')
 # ============================================================================
 
 def clean_output(text):
-    """Clean OpenAI output (original behavior)."""
-    return text.replace("***", "").strip()
+    """Clean AI output: remove markdown formatting and emojis."""
+    import re
+    # Remove markdown bold/italic markers
+    text = re.sub(r'\*{1,3}', '', text)
+    # Remove markdown headers
+    text = re.sub(r'^#{1,6}\s*', '', text, flags=re.MULTILINE)
+    # Remove emoji characters
+    text = re.sub(
+        r'[\U0001F300-\U0001F9FF\U00002702-\U000027B0\U0000FE00-\U0000FE0F'
+        r'\U0001FA00-\U0001FA6F\U0001FA70-\U0001FAFF\U00002600-\U000026FF'
+        r'\U0000200D\U00002B50\U00002B55\U000023CF\U000023E9-\U000023F3'
+        r'\U0000231A\U0000231B]+', '', text
+    )
+    # Collapse multiple blank lines into one
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
 
 def is_blank(value) -> bool:
     if value is None:
@@ -266,7 +282,8 @@ if args.export_prompts:
             f"Learning Style Identified: Mention the student's preferred learning styles {learning_style_1}, {learning_style_2}, and {learning_style_3} and how they can use them to enhance their studies effectively, "
             f"Recommended Career Pathway: Suggest a suitable career pathway {career_pathway} based on their strengths and interests, "
             f"Weak Ability Identified and Recommendations: Highlight one weak ability {weak_ability if str(weak_ability).strip() else 'communication'} positively and include actionable recommendations for improvement. "
-            f"Use motivational, simple, and encouraging language so the student feels empowered after reading the summary. Address the student in second person directly."
+            f"Use motivational, simple, and encouraging language so the student feels empowered after reading the summary. Address the student in second person directly. "
+            f"IMPORTANT: Do NOT use any markdown formatting (no **, no *, no #, no bullet points). Do NOT use emojis. Write in plain text only."
         )
         
         learning_style_prompt = (
@@ -275,7 +292,8 @@ if args.export_prompts:
             f"1. Name: {name}\\n\\n"
             f"2. Top 3 Intelligence Types: Briefly describe the top three intelligences ({intelligence_1}, {intelligence_2}, and {learning_style_1}) that highlight the student's natural strengths.\\n\\n"
             f"3. Strengths in Finding Learning Style: Connect these intelligences to their preferred learning style ({learning_style_1}, {learning_style_2}, {learning_style_3}) and explain how the student can use this understanding to excel in their studies.\\n\\n"
-            f"Use simple, positive, and encouraging language, ensuring the summary empowers the student to embrace their strengths and improve their learning approach. Address the student in second person directly."
+            f"Use simple, positive, and encouraging language, ensuring the summary empowers the student to embrace their strengths and improve their learning approach. Address the student in second person directly. "
+            f"IMPORTANT: Do NOT use any markdown formatting (no **, no *, no #, no bullet points). Do NOT use emojis. Write in plain text only."
         )
         
         prompts_data.append({
@@ -362,7 +380,8 @@ for idx in range(start_index, end_index):
         f"Learning Style Identified: Mention the student's preferred learning styles {learning_style_1}, {learning_style_2}, and {learning_style_3} and how they can use them to enhance their studies effectively, "
         f"Recommended Career Pathway: Suggest a suitable career pathway {career_pathway} based on their strengths and interests, "
         f"Weak Ability Identified and Recommendations: Highlight one weak ability {weak_ability if str(weak_ability).strip() else 'communication'} positively and include actionable recommendations for improvement. "
-        f"Use motivational, simple, and encouraging language so the student feels empowered after reading the summary. Address the student in second person directly."
+        f"Use motivational, simple, and encouraging language so the student feels empowered after reading the summary. Address the student in second person directly. "
+            f"IMPORTANT: Do NOT use any markdown formatting (no **, no *, no #, no bullet points). Do NOT use emojis. Write in plain text only."
     )
     
     # Generate AI Summary
@@ -380,7 +399,8 @@ for idx in range(start_index, end_index):
         f"1. Name: {name}\\n\\n"
         f"2. Top 3 Intelligence Types: Briefly describe the top three intelligences ({intelligence_1}, {intelligence_2}, and {learning_style_1}) that highlight the student's natural strengths.\\n\\n"
         f"3. Strengths in Finding Learning Style: Connect these intelligences to their preferred learning style ({learning_style_1}, {learning_style_2}, {learning_style_3}) and explain how the student can use this understanding to excel in their studies.\\n\\n"
-        f"Use simple, positive, and encouraging language, ensuring the summary empowers the student to embrace their strengths and improve their learning approach. Address the student in second person directly."
+        f"Use simple, positive, and encouraging language, ensuring the summary empowers the student to embrace their strengths and improve their learning approach. Address the student in second person directly. "
+            f"IMPORTANT: Do NOT use any markdown formatting (no **, no *, no #, no bullet points). Do NOT use emojis. Write in plain text only."
     )
     
     # Generate Learning Style Summary

@@ -391,6 +391,7 @@ const AdminDashboard = () => {
   const [showPipelineModal, setShowPipelineModal] = useState(false);
   const [pipelineData, setPipelineData] = useState<any[]>([]);
   const [activePipelineLanguage, setActivePipelineLanguage] = useState<'english' | 'hindi'>('english');
+  const [aiModel, setAiModel] = useState<'openai' | 'ollama'>('ollama');
 
   const [generatedReports, setGeneratedReports] = useState<any[]>([]);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -982,52 +983,72 @@ const AdminDashboard = () => {
       }
       
       appendLog(phase, `Received ${prompts.length} students to process.\n`);
-      
-      // Step 2: Process with OpenAI
+
+      // Step 2: Process with AI model
+      const isOllama = aiModel === 'ollama';
+      const apiUrl = isOllama
+        ? "http://localhost:11434/v1/chat/completions"
+        : "https://api.openai.com/v1/chat/completions";
+      const modelName = isOllama ? "qwen3:1.7b" : "gpt-4o";
+      const fetchHeaders: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...(isOllama ? {} : { "Authorization": `Bearer ${apiKey}` })
+      };
+      const temperature = isOllama ? 0.7 : 1;
+      // Qwen3 thinking mode uses tokens from the budget, so we need more headroom
+      const maxTokens = isOllama ? 8192 : 2048;
+
+      appendLog(phase, `Using model: ${modelName} (${isOllama ? 'Local Ollama' : 'OpenAI'})\n`);
+      if (isOllama) {
+        appendLog(phase, `Note: Qwen3 uses thinking mode - each student may take 1-3 minutes.\n`);
+      }
+
       const results = [];
       let processedCount = 0;
-      
+
       for (const item of prompts) {
         appendLog(phase, `Processing ${item.name}...\n`);
-        
+
         try {
           // AI Summary
-          const aiSummaryRes = await fetch("https://api.openai.com/v1/chat/completions", {
+          const aiSummaryRes = await fetch(apiUrl, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${apiKey}`
-            },
+            headers: fetchHeaders,
             body: JSON.stringify({
-              model: "gpt-4o",
+              model: modelName,
               messages: [{ role: "user", content: item.ai_summary_prompt }],
-              temperature: 1,
-              max_tokens: 2048
+              temperature,
+              max_tokens: maxTokens
             })
           });
-          
+
           const aiSummaryData = await aiSummaryRes.json();
-          // Fix: .strip() is Python, use .trim() in JS
-          const aiSummary = (aiSummaryData.choices?.[0]?.message?.content || "").replace(/\*\*\*/g, "").trim();
-          
+          const aiSummary = (aiSummaryData.choices?.[0]?.message?.content || "")
+            .replace(/\*\*\*/g, "")
+            .replace(/<think>[\s\S]*?<\/think>/g, "")
+            .replace(/\bRealistic\b/gi, "Doer")
+            .replace(/\bInvestigative\b/gi, "Thinker")
+            .trim();
+
           // Learning Style Summary
-          const learningSummaryRes = await fetch("https://api.openai.com/v1/chat/completions", {
+          const learningSummaryRes = await fetch(apiUrl, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${apiKey}`
-            },
+            headers: fetchHeaders,
             body: JSON.stringify({
-              model: "gpt-4o",
+              model: modelName,
               messages: [{ role: "user", content: item.learning_style_prompt }],
-              temperature: 1,
-              max_tokens: 2048
+              temperature,
+              max_tokens: maxTokens
             })
           });
-          
+
           const learningSummaryData = await learningSummaryRes.json();
-          // Fix: .strip() is Python, use .trim() in JS
-          const learningSummary = (learningSummaryData.choices?.[0]?.message?.content || "").replace(/\*\*\*/g, "").trim();
+          const learningSummary = (learningSummaryData.choices?.[0]?.message?.content || "")
+            .replace(/\*\*\*/g, "")
+            .replace(/<think>[\s\S]*?<\/think>/g, "")
+            .replace(/\bRealistic\b/gi, "Doer")
+            .replace(/\bInvestigative\b/gi, "Thinker")
+            .trim();
           
           results.push({
             student_id: item.student_id,
@@ -1401,6 +1422,60 @@ const AdminDashboard = () => {
       } else {
         setIsNormalizing(false);
       }
+    }
+  };
+
+  const exportDemographicsToExcel = async () => {
+    setIsExporting(true);
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    try {
+      const headers = [
+        'Name',
+        'Phone',
+        'Email',
+        'Gender',
+        'DOB',
+        'Class',
+        'Section',
+        'School',
+        'School Type',
+        'Father Occupation',
+        'Mother Occupation',
+        'Joined Date',
+        'Assessment Status'
+      ];
+
+      const exportData = filteredStudents.map(student => [
+        student.personal.name || '',
+        student.personal.phone || '',
+        student.personal.email || '',
+        student.personal.gender || '',
+        student.personal.dob || '',
+        student.educational.studentClass || '',
+        student.educational.section || '',
+        student.educational.school || '',
+        student.educational.schoolType || '',
+        student.educational.fatherOccupation || '',
+        student.educational.motherOccupation || '',
+        (student.authCreatedAt || student.createdAt).toLocaleDateString() || '',
+        getAssessmentStatus(student)
+      ]);
+
+      const wb = XLSX.utils.book_new();
+      const allData = [headers, ...exportData];
+      const ws = XLSX.utils.aoa_to_sheet(allData);
+      XLSX.utils.book_append_sheet(wb, ws, 'Demographics');
+
+      const date = new Date().toISOString().split('T')[0];
+      const tenant = currentTenant && currentTenant !== 'localhost' ? `${currentTenant}_` : '';
+      const filename = `${tenant}student_demographics_${date}.xlsx`;
+      XLSX.writeFile(wb, filename);
+    } catch (error) {
+      console.error("Export failed:", error);
+      alert("Export failed. Please try again.");
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -2338,6 +2413,18 @@ const AdminDashboard = () => {
                       </button>
                     </>
                   )}
+                  <button
+                    onClick={exportDemographicsToExcel}
+                    disabled={isExporting}
+                    className={`inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition-all duration-200 ${isExporting ? 'opacity-75 cursor-not-allowed' : ''}`}
+                  >
+                    {isExporting ? (
+                      <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></span>
+                    ) : (
+                      <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                    )}
+                    {isExporting ? 'Exporting...' : 'Export Demographics'}
+                  </button>
                   {isMainDomain && (
                     <button
                       onClick={exportSelectedToExcel}
@@ -2921,6 +3008,18 @@ const AdminDashboard = () => {
                   {(isNormalizing || isNormalizingEnglish) && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>}
                   Pipeline Execution ({activePipelineLanguage})
                 </h3>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-gray-400">AI Model:</label>
+                  <select
+                    value={aiModel}
+                    onChange={(e) => setAiModel(e.target.value as 'openai' | 'ollama')}
+                    className="bg-gray-800 border border-gray-600 text-gray-200 text-sm rounded px-2 py-1"
+                    disabled={isNormalizing || isNormalizingEnglish}
+                  >
+                    <option value="ollama">Ollama - Qwen 3 1.7B (Local)</option>
+                    <option value="openai">OpenAI - GPT-4o</option>
+                  </select>
+                </div>
                 {!(isNormalizing || isNormalizingEnglish) && (
                   <button onClick={() => setShowPipelineModal(false)} className="text-gray-400 hover:text-white">
                     Close
@@ -3046,7 +3145,18 @@ const AdminDashboard = () => {
               </div>
               
               <div className="p-6 border-t bg-gray-50 flex justify-between items-center">
-                <div className="flex gap-3">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-700">AI Model:</label>
+                    <select
+                      value={aiModel}
+                      onChange={(e) => setAiModel(e.target.value as 'openai' | 'ollama')}
+                      className="border border-gray-300 text-gray-700 text-sm rounded-md px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="ollama">Ollama - Qwen 3 1.7B (Local)</option>
+                      <option value="openai">OpenAI - GPT-4o</option>
+                    </select>
+                  </div>
                   <button
                     onClick={() => handleGenerateReports('english')}
                     disabled={omrData.length === 0 || isStartingPipeline}

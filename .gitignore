@@ -69,3 +69,6 @@ app/api/flat-map
 app/api/multiple-intelligence-detailed
 app/api/personality
 app/api/personality-detailed
+
+# DB sync script (contains credentials)
+sync-to-local.sh
