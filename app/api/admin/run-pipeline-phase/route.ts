@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
     console.log(`Executing Phase ${phase} (${config.description}):`, command);
 
     // Execute the main script
-    const { stdout, stderr } = await execAsync(command, { cwd: reportGenDir });
+    const { stdout, stderr } = await execAsync(command, { cwd: reportGenDir, maxBuffer: 50 * 1024 * 1024 });
     
     let output = stdout;
     let error = stderr;
