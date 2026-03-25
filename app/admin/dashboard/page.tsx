@@ -392,6 +392,10 @@ const AdminDashboard = () => {
   const [pipelineData, setPipelineData] = useState<any[]>([]);
   const [activePipelineLanguage, setActivePipelineLanguage] = useState<'english' | 'hindi'>('english');
   const [aiModel, setAiModel] = useState<'openai' | 'ollama'>('ollama');
+  const [showModelConfirm, setShowModelConfirm] = useState(false);
+  const [pendingLanguage, setPendingLanguage] = useState<'english' | 'hindi'>('english');
+  const [pendingPipelineSource, setPendingPipelineSource] = useState<'dashboard' | 'omr'>('dashboard');
+  const [aiModel, setAiModel] = useState<'openai' | 'ollama'>('ollama');
 
   const [generatedReports, setGeneratedReports] = useState<any[]>([]);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -984,24 +988,60 @@ const AdminDashboard = () => {
       
       appendLog(phase, `Received ${prompts.length} students to process.\n`);
 
-      // Step 2: Process with AI model
+      // Step 2: Process with AI model (all calls go through server-side proxy)
       const isOllama = aiModel === 'ollama';
-      const apiUrl = isOllama
-        ? "http://localhost:11434/v1/chat/completions"
-        : "https://api.openai.com/v1/chat/completions";
-      const modelName = isOllama ? "qwen3:1.7b" : "gpt-4o";
-      const fetchHeaders: Record<string, string> = {
-        "Content-Type": "application/json",
-        ...(isOllama ? {} : { "Authorization": `Bearer ${apiKey}` })
-      };
+      const modelName = isOllama ? (process.env.NEXT_PUBLIC_LOCAL_MODEL_NAME || "llama3") : "gpt-4o";
+      const provider = isOllama ? 'ollama' : 'openai';
       const temperature = isOllama ? 0.7 : 1;
-      // Qwen3 thinking mode uses tokens from the budget, so we need more headroom
       const maxTokens = isOllama ? 8192 : 2048;
 
-      appendLog(phase, `Using model: ${modelName} (${isOllama ? 'Local Ollama' : 'OpenAI'})\n`);
-      if (isOllama) {
-        appendLog(phase, `Note: Qwen3 uses thinking mode - each student may take 1-3 minutes.\n`);
-      }
+      appendLog(phase, `Using model: ${modelName} (${isOllama ? 'Local Ollama' : 'OpenAI'}) via server proxy\n`);
+
+      // Helper: call AI through server-side proxy to avoid browser CORS/network issues
+      const callAI = async (prompt: string): Promise<string> => {
+        const res = await fetch('/api/admin/ai-generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt,
+            model: modelName,
+            provider,
+            temperature,
+            max_tokens: maxTokens,
+            apiKey,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || data.details || `Server returned ${res.status}`);
+        }
+        return data.content || "";
+      };
+
+      // Helper: clean AI response text
+      const cleanResponse = (raw: string): string => {
+        let text = raw
+          .replace(/\*\*\*/g, "")
+          .replace(/\*\*/g, "")
+          .replace(/\*/g, "")
+          .replace(/\bRealistic\b/gi, "Doer")
+          .replace(/\bInvestigative\b/gi, "Thinker");
+        // Strip <think> blocks but preserve content outside them
+        if (text.includes('<think>')) {
+          const afterThink = text.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+          if (afterThink.length > 0) {
+            text = afterThink;
+          } else {
+            const lastCloseIdx = text.lastIndexOf('</think>');
+            if (lastCloseIdx !== -1) {
+              text = text.substring(lastCloseIdx + 8).trim();
+            } else {
+              text = text.replace(/<think>/g, "").trim();
+            }
+          }
+        }
+        return text.trim();
+      };
 
       const results = [];
       let processedCount = 0;
@@ -1011,54 +1051,33 @@ const AdminDashboard = () => {
 
         try {
           // AI Summary
-          const aiSummaryRes = await fetch(apiUrl, {
-            method: "POST",
-            headers: fetchHeaders,
-            body: JSON.stringify({
-              model: modelName,
-              messages: [{ role: "user", content: item.ai_summary_prompt }],
-              temperature,
-              max_tokens: maxTokens
-            })
-          });
-
-          const aiSummaryData = await aiSummaryRes.json();
-          const aiSummary = (aiSummaryData.choices?.[0]?.message?.content || "")
-            .replace(/\*\*\*/g, "")
-            .replace(/<think>[\s\S]*?<\/think>/g, "")
-            .replace(/\bRealistic\b/gi, "Doer")
-            .replace(/\bInvestigative\b/gi, "Thinker")
-            .trim();
+          const rawAiContent = await callAI(item.ai_summary_prompt);
+          if (!rawAiContent) {
+            appendLog(phase, `  ⚠️ Empty AI summary response for ${item.name}\n`);
+          }
+          const aiSummary = cleanResponse(rawAiContent);
 
           // Learning Style Summary
-          const learningSummaryRes = await fetch(apiUrl, {
-            method: "POST",
-            headers: fetchHeaders,
-            body: JSON.stringify({
-              model: modelName,
-              messages: [{ role: "user", content: item.learning_style_prompt }],
-              temperature,
-              max_tokens: maxTokens
-            })
-          });
+          const rawLearningContent = await callAI(item.learning_style_prompt);
+          if (!rawLearningContent) {
+            appendLog(phase, `  ⚠️ Empty learning summary response for ${item.name}\n`);
+          }
+          const learningSummary = cleanResponse(rawLearningContent);
 
-          const learningSummaryData = await learningSummaryRes.json();
-          const learningSummary = (learningSummaryData.choices?.[0]?.message?.content || "")
-            .replace(/\*\*\*/g, "")
-            .replace(/<think>[\s\S]*?<\/think>/g, "")
-            .replace(/\bRealistic\b/gi, "Doer")
-            .replace(/\bInvestigative\b/gi, "Thinker")
-            .trim();
-          
+          appendLog(phase, `  ✅ ${item.name} — AI: ${rawAiContent.length}→${aiSummary.length} chars, Learning: ${rawLearningContent.length}→${learningSummary.length} chars\n`);
+
+          if (!aiSummary && rawAiContent) {
+            appendLog(phase, `  ⚠️ AI summary became empty after cleanup! Raw: ${rawAiContent.slice(0, 200)}\n`);
+          }
+
           results.push({
             student_id: item.student_id,
             ai_summary: aiSummary,
             learning_style_summary: learningSummary
           });
-          
+
           processedCount++;
-          // appendLog(phase, `  ✅ Completed ${item.name}\n`);
-          
+
         } catch (err: any) {
           appendLog(phase, `  ❌ Failed ${item.name}: ${err.message}\n`);
         }
@@ -1171,95 +1190,70 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleRunPipeline = async () => {
+  const handleRunPipeline = () => {
     if (isNormalizing) return;
-    
-    // Get selected students
+
     const selectedStudentData = filteredStudents.filter(student => selectedStudents.has(student.uid));
-    
     if (selectedStudentData.length === 0) {
       alert('Please select at least one student to run the pipeline.');
       return;
     }
 
-    const confirmRun = window.confirm(`Are you sure you want to run the full Hindi pipeline (Phases 0-6) for ${selectedStudentData.length} selected students? This may take a while.`);
-    if (!confirmRun) return;
-
-    setIsNormalizing(true);
-    setShowPipelineModal(true);
-    setActivePipelineLanguage('hindi');
-    
-    // Prepare data
-    const exportData = prepareExportData(selectedStudentData);
-    setPipelineData(exportData);
-
-    // Initialize state
-    const initialState: any = {};
-    for(let i=0; i<=6; i++) initialState[i] = { status: 'pending', logs: '' };
-    setPipelineState(initialState);
-    setGeneratedReports([]);
-
-    try {
-      // Phase 0: Normalization
-      const phase0Success = await runPhase(0, 'hindi', exportData);
-      if (!phase0Success) return;
-
-      // Phases 1-6
-      for (let i = 1; i <= 6; i++) {
-        const success = await runPhase(i, 'hindi');
-        if (!success) return;
-      }
-
-    } catch (error: any) {
-      console.error('Error running pipeline:', error);
-    } finally {
-      setIsNormalizing(false);
-    }
+    setPendingLanguage('hindi');
+    setPendingPipelineSource('dashboard');
+    setShowModelConfirm(true);
   };
 
-  const handleRunNormalizerEnglish = async () => {
+  const handleRunNormalizerEnglish = () => {
     if (isNormalizingEnglish) return;
-    
-    // Get selected students
+
     const selectedStudentData = filteredStudents.filter(student => selectedStudents.has(student.uid));
-    
     if (selectedStudentData.length === 0) {
       alert('Please select at least one student to run the pipeline.');
       return;
     }
 
-    const confirmRun = window.confirm(`Are you sure you want to run the full English pipeline (Phases 0-6) for ${selectedStudentData.length} selected students? This may take a while.`);
-    if (!confirmRun) return;
+    setPendingLanguage('english');
+    setPendingPipelineSource('dashboard');
+    setShowModelConfirm(true);
+  };
 
-    setIsNormalizingEnglish(true);
+  const executeDashboardPipeline = async (language: 'english' | 'hindi') => {
+    const selectedStudentData = filteredStudents.filter(student => selectedStudents.has(student.uid));
+
+    if (language === 'english') {
+      setIsNormalizingEnglish(true);
+    } else {
+      setIsNormalizing(true);
+    }
     setShowPipelineModal(true);
-    setActivePipelineLanguage('english');
+    setActivePipelineLanguage(language);
 
-    // Prepare data
     const exportData = prepareExportData(selectedStudentData);
     setPipelineData(exportData);
 
-    // Initialize state
     const initialState: any = {};
     for(let i=0; i<=6; i++) initialState[i] = { status: 'pending', logs: '' };
     setPipelineState(initialState);
     setGeneratedReports([]);
 
     try {
-      // Phase 0: Normalization
-      const phase0Success = await runPhase(0, 'english', exportData);
+      const phase0Success = await runPhase(0, language, exportData);
       if (!phase0Success) return;
 
-      // Phases 1-6
       for (let i = 1; i <= 6; i++) {
-        const success = await runPhase(i, 'english');
+        const success = await runPhase(i, language);
         if (!success) return;
       }
 
     } catch (error: any) {
       console.error('Error running pipeline:', error);
     } finally {
-      setIsNormalizingEnglish(false);
+      if (language === 'english') {
+        setIsNormalizingEnglish(false);
+      } else {
+        setIsNormalizing(false);
+      }
     }
   };
 
@@ -3016,7 +3010,7 @@ const AdminDashboard = () => {
                     className="bg-gray-800 border border-gray-600 text-gray-200 text-sm rounded px-2 py-1"
                     disabled={isNormalizing || isNormalizingEnglish}
                   >
-                    <option value="ollama">Ollama - Qwen 3 1.7B (Local)</option>
+                    <option value="ollama">Local - {process.env.NEXT_PUBLIC_LOCAL_MODEL_NAME || 'llama3'}</option>
                     <option value="openai">OpenAI - GPT-4o</option>
                   </select>
                 </div>
@@ -3146,19 +3140,8 @@ const AdminDashboard = () => {
               
               <div className="p-6 border-t bg-gray-50 flex justify-between items-center">
                 <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm font-medium text-gray-700">AI Model:</label>
-                    <select
-                      value={aiModel}
-                      onChange={(e) => setAiModel(e.target.value as 'openai' | 'ollama')}
-                      className="border border-gray-300 text-gray-700 text-sm rounded-md px-3 py-2 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="ollama">Ollama - Qwen 3 1.7B (Local)</option>
-                      <option value="openai">OpenAI - GPT-4o</option>
-                    </select>
-                  </div>
                   <button
-                    onClick={() => handleGenerateReports('english')}
+                    onClick={() => { setPendingLanguage('english'); setPendingPipelineSource('omr'); setShowModelConfirm(true); }}
                     disabled={omrData.length === 0 || isStartingPipeline}
                     className={`px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center ${isStartingPipeline ? 'opacity-75' : ''}`}
                   >
@@ -3168,7 +3151,7 @@ const AdminDashboard = () => {
                     Generate English Reports
                   </button>
                   <button
-                    onClick={() => handleGenerateReports('hindi')}
+                    onClick={() => { setPendingLanguage('hindi'); setPendingPipelineSource('omr'); setShowModelConfirm(true); }}
                     disabled={omrData.length === 0 || isStartingPipeline}
                     className={`px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700 font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center ${isStartingPipeline ? 'opacity-75' : ''}`}
                   >
@@ -3185,6 +3168,55 @@ const AdminDashboard = () => {
                   Close
                 </button>
               </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* Model Selection Confirmation Modal */}
+        {showModelConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+            <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">Select AI Model</h3>
+              <p className="text-sm text-gray-500 mb-4">
+                Choose which model to use for the AI summary phase ({pendingLanguage} reports){pendingPipelineSource === 'dashboard' ? ` for ${filteredStudents.filter(s => selectedStudents.has(s.uid)).length} selected students` : ''}.
+              </p>
+              <div className="space-y-2 mb-6">
+                <label
+                  className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${aiModel === 'ollama' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}
+                  onClick={() => setAiModel('ollama')}
+                >
+                  <input type="radio" name="modelSelect" checked={aiModel === 'ollama'} onChange={() => setAiModel('ollama')} className="accent-blue-600" />
+                  <div>
+                    <div className="font-medium text-gray-900">Local - {process.env.NEXT_PUBLIC_LOCAL_MODEL_NAME || 'llama3'}</div>
+                    <div className="text-xs text-gray-500">Local Ollama model, no API key needed</div>
+                  </div>
+                </label>
+                <label
+                  className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-colors ${aiModel === 'openai' ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}`}
+                  onClick={() => setAiModel('openai')}
+                >
+                  <input type="radio" name="modelSelect" checked={aiModel === 'openai'} onChange={() => setAiModel('openai')} className="accent-blue-600" />
+                  <div>
+                    <div className="font-medium text-gray-900">OpenAI - GPT-4o</div>
+                    <div className="text-xs text-gray-500">Requires API key, uses cloud API</div>
+                  </div>
+                </label>
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowModelConfirm(false)}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => { setShowModelConfirm(false); pendingPipelineSource === 'omr' ? handleGenerateReports(pendingLanguage) : executeDashboardPipeline(pendingLanguage); }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium transition-colors"
+                >
+                  Start Pipeline
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -3193,4 +3225,4 @@ const AdminDashboard = () => {
   );
 };
 
-export default AdminDashboard; 
+export default AdminDashboard;

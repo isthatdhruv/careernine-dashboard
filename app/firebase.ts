@@ -1,7 +1,7 @@
 // app/firebase.ts
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeApp, getApps } from 'firebase/app';
+import { getAuth, type Auth } from 'firebase/auth';
+import { getFirestore, type Firestore } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -11,9 +11,11 @@ const firebaseConfig = {
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
-  
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
+
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const db: Firestore = getFirestore(app);
+
+// getAuth() uses localStorage internally, so it must only be called in the browser
+const auth: Auth = typeof window !== 'undefined' ? getAuth(app) : ({} as Auth);
 
 export { auth, db };
