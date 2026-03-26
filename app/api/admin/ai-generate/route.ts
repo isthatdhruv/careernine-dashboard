@@ -18,6 +18,9 @@ export async function POST(req: NextRequest) {
       ...(isOllama ? {} : { Authorization: `Bearer ${apiKey}` }),
     };
 
+    const start = Date.now();
+    console.log(`[ai-generate] Calling ${provider}/${model} (prompt: ${prompt.length} chars)`);
+
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers,
@@ -30,9 +33,11 @@ export async function POST(req: NextRequest) {
       }),
     });
 
+    const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`AI API error (${response.status}):`, errorText.slice(0, 500));
+      console.error(`[ai-generate] FAILED after ${elapsed}s (${response.status}):`, errorText.slice(0, 500));
       return NextResponse.json(
         { error: `AI API returned ${response.status}`, details: errorText.slice(0, 500) },
         { status: 502 }
@@ -42,6 +47,7 @@ export async function POST(req: NextRequest) {
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content || '';
 
+    console.log(`[ai-generate] OK in ${elapsed}s (response: ${content.length} chars)`);
     return NextResponse.json({ success: true, content });
   } catch (error: any) {
     console.error('AI generate error:', error);

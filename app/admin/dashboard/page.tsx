@@ -395,7 +395,9 @@ const AdminDashboard = () => {
   const [showModelConfirm, setShowModelConfirm] = useState(false);
   const [pendingLanguage, setPendingLanguage] = useState<'english' | 'hindi'>('english');
   const [pendingPipelineSource, setPendingPipelineSource] = useState<'dashboard' | 'omr'>('dashboard');
-  const [aiModel, setAiModel] = useState<'openai' | 'ollama'>('ollama');
+  const [batchSize, setBatchSize] = useState(10);
+  const [parallelWorkers, setParallelWorkers] = useState(3);
+  const pipelineAbortRef = useRef(false);
 
   const [generatedReports, setGeneratedReports] = useState<any[]>([]);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -958,6 +960,7 @@ const AdminDashboard = () => {
 
   const runPhase4Frontend = async (language: string): Promise<boolean> => {
     const phase = 4;
+    pipelineAbortRef.current = false;
     setStatus(phase, 'running');
     appendLog(phase, `\n--- Starting Phase ${phase} (${language}) [Frontend Mode] ---\n`);
 
@@ -990,7 +993,7 @@ const AdminDashboard = () => {
 
       // Step 2: Process with AI model (all calls go through server-side proxy)
       const isOllama = aiModel === 'ollama';
-      const modelName = isOllama ? (process.env.NEXT_PUBLIC_LOCAL_MODEL_NAME || "llama3") : "gpt-4o";
+      const modelName = isOllama ? (process.env.NEXT_PUBLIC_LOCAL_MODEL_NAME || "llama3:latest") : "gpt-4o";
       const provider = isOllama ? 'ollama' : 'openai';
       const temperature = isOllama ? 0.7 : 1;
       const maxTokens = isOllama ? 8192 : 2048;
@@ -998,7 +1001,9 @@ const AdminDashboard = () => {
       appendLog(phase, `Using model: ${modelName} (${isOllama ? 'Local Ollama' : 'OpenAI'}) via server proxy\n`);
 
       // Helper: call AI through server-side proxy to avoid browser CORS/network issues
-      const callAI = async (prompt: string): Promise<string> => {
+      const callAI = async (prompt: string, label: string): Promise<string> => {
+        const start = performance.now();
+        appendLog(phase, `    ⏳ ${label} calling API...\n`);
         const res = await fetch('/api/admin/ai-generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1011,10 +1016,12 @@ const AdminDashboard = () => {
             apiKey,
           }),
         });
+        const elapsed = ((performance.now() - start) / 1000).toFixed(1);
         const data = await res.json();
         if (!res.ok || !data.success) {
           throw new Error(data.error || data.details || `Server returned ${res.status}`);
         }
+        appendLog(phase, `    ✓ ${label} done in ${elapsed}s (${(data.content || "").length} chars)\n`);
         return data.content || "";
       };
 
@@ -1043,28 +1050,29 @@ const AdminDashboard = () => {
         return text.trim();
       };
 
-      const results = [];
+      const results: { student_id: string; ai_summary: string; learning_style_summary: string }[] = [];
       let processedCount = 0;
 
-      for (const item of prompts) {
+      // Process a single student (both AI summary + learning style)
+      const processStudent = async (item: any): Promise<void> => {
+        if (pipelineAbortRef.current) return;
+        const studentStart = performance.now();
         appendLog(phase, `Processing ${item.name}...\n`);
-
         try {
-          // AI Summary
-          const rawAiContent = await callAI(item.ai_summary_prompt);
+          const rawAiContent = await callAI(item.ai_summary_prompt, `[${item.name}] AI Summary`);
           if (!rawAiContent) {
             appendLog(phase, `  ⚠️ Empty AI summary response for ${item.name}\n`);
           }
           const aiSummary = cleanResponse(rawAiContent);
 
-          // Learning Style Summary
-          const rawLearningContent = await callAI(item.learning_style_prompt);
+          const rawLearningContent = await callAI(item.learning_style_prompt, `[${item.name}] Learning Style`);
           if (!rawLearningContent) {
             appendLog(phase, `  ⚠️ Empty learning summary response for ${item.name}\n`);
           }
           const learningSummary = cleanResponse(rawLearningContent);
 
-          appendLog(phase, `  ✅ ${item.name} — AI: ${rawAiContent.length}→${aiSummary.length} chars, Learning: ${rawLearningContent.length}→${learningSummary.length} chars\n`);
+          const studentElapsed = ((performance.now() - studentStart) / 1000).toFixed(1);
+          appendLog(phase, `  ✅ ${item.name} done in ${studentElapsed}s — AI: ${rawAiContent.length}→${aiSummary.length} chars, Learning: ${rawLearningContent.length}→${learningSummary.length} chars\n`);
 
           if (!aiSummary && rawAiContent) {
             appendLog(phase, `  ⚠️ AI summary became empty after cleanup! Raw: ${rawAiContent.slice(0, 200)}\n`);
@@ -1077,12 +1085,47 @@ const AdminDashboard = () => {
           });
 
           processedCount++;
-
         } catch (err: any) {
           appendLog(phase, `  ❌ Failed ${item.name}: ${err.message}\n`);
         }
+      };
+
+      // Split prompts into batches and process each batch with parallel workers
+      const totalBatches = Math.ceil(prompts.length / batchSize);
+      appendLog(phase, `Parallel config: ${parallelWorkers} workers, batch size ${batchSize}, ${totalBatches} batch(es)\n`);
+
+      for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+        if (pipelineAbortRef.current) {
+          appendLog(phase, `\n⛔ Stopped by user after ${processedCount}/${prompts.length} students.\n`);
+          break;
+        }
+        const batch = prompts.slice(batchIdx * batchSize, (batchIdx + 1) * batchSize);
+        appendLog(phase, `\n--- Batch ${batchIdx + 1}/${totalBatches} (${batch.length} students) ---\n`);
+
+        // Process batch items with limited concurrency
+        for (let i = 0; i < batch.length; i += parallelWorkers) {
+          if (pipelineAbortRef.current) break;
+          const chunk = batch.slice(i, i + parallelWorkers);
+          await Promise.all(chunk.map(item => processStudent(item)));
+        }
+
+        appendLog(phase, `Batch ${batchIdx + 1} complete. Progress: ${processedCount}/${prompts.length}\n`);
       }
       
+      // If aborted, save partial results and continue to next phases
+      if (pipelineAbortRef.current) {
+        appendLog(phase, `\n⛔ Stopped by user. ${results.length}/${prompts.length} students completed.\n`);
+        if (results.length === 0) {
+          appendLog(phase, `No results to save. Skipping.\n`);
+          setStatus(phase, 'error');
+          return false;
+        }
+        appendLog(phase, `Saving ${results.length} partial results and continuing to next phases...\n`);
+        pipelineAbortRef.current = false;
+      } else {
+        appendLog(phase, `All ${results.length} students processed.\n`);
+      }
+
       // Step 3: Save Results
       appendLog(phase, `Saving ${results.length} results to backend...\n`);
       const saveResponse = await fetch('/api/admin/run-pipeline-phase', {
@@ -3014,7 +3057,14 @@ const AdminDashboard = () => {
                     <option value="openai">OpenAI - GPT-4o</option>
                   </select>
                 </div>
-                {!(isNormalizing || isNormalizingEnglish) && (
+                {(isNormalizing || isNormalizingEnglish) ? (
+                  <button
+                    onClick={() => { pipelineAbortRef.current = true; }}
+                    className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded font-medium transition-colors"
+                  >
+                    Stop
+                  </button>
+                ) : (
                   <button onClick={() => setShowPipelineModal(false)} className="text-gray-400 hover:text-white">
                     Close
                   </button>
@@ -3203,6 +3253,38 @@ const AdminDashboard = () => {
                   </div>
                 </label>
               </div>
+
+              {/* Parallel Processing Controls */}
+              <div className="border-t pt-4 mb-4">
+                <h4 className="text-sm font-semibold text-gray-700 mb-3">Parallel Processing</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Batch Size</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={batchSize}
+                      onChange={(e) => setBatchSize(Math.max(1, Math.min(100, parseInt(e.target.value) || 1)))}
+                      className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <span className="text-[10px] text-gray-400">Students per batch</span>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">Parallel Workers</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={parallelWorkers}
+                      onChange={(e) => setParallelWorkers(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                      className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <span className="text-[10px] text-gray-400">Concurrent API calls</span>
+                  </div>
+                </div>
+              </div>
+
               <div className="flex gap-3 justify-end">
                 <button
                   onClick={() => setShowModelConfirm(false)}
