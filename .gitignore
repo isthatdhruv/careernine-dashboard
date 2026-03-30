@@ -16,7 +16,8 @@ report-gen-hindi/Reports/
 report-gen-hindi/graphs/
 report-gen-hindi/__pycache__/
 report-gen-hindi/ai_progress.csv
-
+report-gen-hindi/ai_cache_old/
+ai_cache_old
 report-gen-english/.venv/
 report-gen-english/ai_cache/
 report-gen-english/Reports/
