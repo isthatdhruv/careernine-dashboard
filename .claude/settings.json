@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -r googleapis /home/kccsw/Projects/career-nine-analyze --include=package.json --include=*.json)",
+      "Bash(grep -r \"GoogleAuth\\\\|serviceAccountKey\\\\|GOOGLE_APPLICATION_CREDENTIALS\" /home/kccsw/Projects/career-nine-analyze --include=*.ts --include=*.tsx --include=*.js --exclude-dir=node_modules)",
+      "Bash(grep -r \"DRIVE\\\\|Drive\" /home/kccsw/Projects/career-nine-analyze/.env.local /home/kccsw/Projects/career-nine-analyze/report-gen-*/.env)",
+      "Bash(node -e \"require\\(''open''\\)\")",
+      "Bash(node get-drive-token.js)"
+    ]
+  }
+}

@@ -72,3 +72,6 @@ app/api/personality-detailed
 
 # DB sync script (contains credentials)
 sync-to-local.sh
+
+# OAuth token helper (reads secrets from env)
+get-drive-token.js

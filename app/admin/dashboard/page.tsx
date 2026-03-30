@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { db } from '../../firebase';
-import { collection, getDocs, query, where, deleteDoc, doc, orderBy } from 'firebase/firestore';
+import { collection, getDocs, query, where, deleteDoc, doc, orderBy, updateDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getTenantConfig, type TenantConfig } from '../../lib/tenant-config';
 import { 
@@ -403,9 +403,14 @@ const AdminDashboard = () => {
   const [showReportModal, setShowReportModal] = useState(false);
   const [loadingReports, setLoadingReports] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<StudentData | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [editNameValue, setEditNameValue] = useState('');
+  const [savingName, setSavingName] = useState(false);
   const [sortField, setSortField] = useState<SortField>('joined');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [pageSize, setPageSize] = useState<number>(50);
+  const [currentPage, setCurrentPage] = useState<number>(1);
   const [copyStatus, setCopyStatus] = useState<string>('');
   
   // OMR Data Upload State
@@ -458,6 +463,34 @@ const AdminDashboard = () => {
     navigator.clipboard.writeText(text);
     setCopyStatus('Copied!');
     setTimeout(() => setCopyStatus(''), 2000);
+  };
+
+  const handleSaveName = async () => {
+    if (!selectedStudent || !editNameValue.trim()) return;
+    const newName = editNameValue.trim();
+    if (newName === selectedStudent.personal.name) {
+      setEditingName(false);
+      return;
+    }
+    setSavingName(true);
+    try {
+      const studentRef = doc(db, 'users', selectedStudent.uid);
+      await updateDoc(studentRef, { 'personal.name': newName });
+      setSelectedStudent({
+        ...selectedStudent,
+        personal: { ...selectedStudent.personal, name: newName }
+      });
+      setStudents(prev => prev.map(s =>
+        s.uid === selectedStudent.uid
+          ? { ...s, personal: { ...s.personal, name: newName } }
+          : s
+      ));
+      setEditingName(false);
+    } catch (error: any) {
+      alert('Failed to update name: ' + error.message);
+    } finally {
+      setSavingName(false);
+    }
   };
 
   const calculateStats = useCallback((userData: StudentData[]) => {
@@ -822,12 +855,31 @@ const AdminDashboard = () => {
     setSelectedStudents(newSelected);
   };
 
+  // Pagination
+  const totalPages = Math.ceil(filteredStudents.length / pageSize);
+  const paginatedStudents = filteredStudents.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  // Reset to page 1 when filters/search change the result set
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedClass, statusFilter, tenantFilter, schoolFilter, schoolTypeFilter, sectionFilter, pageSize]);
+
+  const pageStudentIds = new Set(paginatedStudents.map(s => s.uid));
+  const allPageSelected = paginatedStudents.length > 0 && paginatedStudents.every(s => selectedStudents.has(s.uid));
+
   const handleSelectAll = () => {
-    if (selectedStudents.size === filteredStudents.length) {
-      setSelectedStudents(new Set());
+    const newSelected = new Set(selectedStudents);
+    if (allPageSelected) {
+      // Deselect only current page
+      pageStudentIds.forEach(id => newSelected.delete(id));
     } else {
-      setSelectedStudents(new Set(filteredStudents.map(student => student.uid)));
+      // Select current page
+      pageStudentIds.forEach(id => newSelected.add(id));
     }
+    setSelectedStudents(newSelected);
   };
 
   const prepareExportData = (studentsToExport: StudentData[]) => {
@@ -980,8 +1032,8 @@ const AdminDashboard = () => {
       }
       
       const prompts = fetchResult.prompts;
-      // Hardcoded API Key as requested
-      const apiKey = "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";
+      const apiKeyRes = await fetch('/api/admin/get-openai-key');
+      const { apiKey } = await apiKeyRes.json();
       
       if (!prompts || prompts.length === 0) {
         appendLog(phase, "No students need processing (all cached or skipped).\n");
@@ -2605,10 +2657,7 @@ const AdminDashboard = () => {
                     type="text"
                     placeholder="Search by name, email, school, hobbies..."
                     value={searchTerm}
-                    onChange={(e) => {
-                      setSearchTerm(e.target.value);
-                      setSelectedStudents(new Set()); // Clear selections when search changes
-                    }}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
                   />
                 </div>
@@ -2622,7 +2671,7 @@ const AdminDashboard = () => {
                       onClick={handleSelectAll}
                       className="inline-flex items-center px-3 py-1 border border-gray-300 shadow-sm text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                     >
-                      {selectedStudents.size === filteredStudents.length ? 'Deselect All' : 'Select All'}
+                      {allPageSelected ? 'Deselect Page' : 'Select Page'}
                     </button>
                     <span className="text-sm text-gray-600">
                       {selectedStudents.size} of {filteredStudents.length} students selected
@@ -2648,7 +2697,7 @@ const AdminDashboard = () => {
                     <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       <input
                         type="checkbox"
-                        checked={filteredStudents.length > 0 && selectedStudents.size === filteredStudents.length}
+                        checked={allPageSelected}
                         onChange={handleSelectAll}
                         className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-500 focus:ring-blue-500"
                       />
@@ -2709,9 +2758,9 @@ const AdminDashboard = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {filteredStudents.map((student, index) => {
+                {paginatedStudents.map((student, index) => {
                   const status = getAssessmentStatus(student);
-                  
+
                   return (
                     <tr key={student.uid} className="hover:bg-gray-50">
                       {isMainDomain && (
@@ -2725,7 +2774,7 @@ const AdminDashboard = () => {
                         </td>
                       )}
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {index + 1}
+                        {(currentPage - 1) * pageSize + index + 1}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">{student.personal.name}</div>
@@ -2781,6 +2830,77 @@ const AdminDashboard = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination Controls */}
+          <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-4 border-t border-gray-200 bg-gray-50">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-700">Rows per page:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className="rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm"
+              >
+                {[50, 100, 200, 300, 400, 500].map(size => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </select>
+              <span className="text-sm text-gray-500">
+                Showing {filteredStudents.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filteredStudents.length)} of {filteredStudents.length}
+              </span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setCurrentPage(1)}
+                disabled={currentPage === 1}
+                className="px-2 py-1 text-sm rounded-md border border-gray-300 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                First
+              </button>
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 text-sm rounded-md border border-gray-300 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Prev
+              </button>
+              {/* Page number buttons */}
+              {(() => {
+                const pages: number[] = [];
+                let start = Math.max(1, currentPage - 2);
+                let end = Math.min(totalPages, currentPage + 2);
+                if (currentPage <= 3) end = Math.min(totalPages, 5);
+                if (currentPage >= totalPages - 2) start = Math.max(1, totalPages - 4);
+                for (let i = start; i <= end; i++) pages.push(i);
+                return pages.map(page => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1 text-sm rounded-md border ${
+                      page === currentPage
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'border-gray-300 bg-white hover:bg-gray-100'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ));
+              })()}
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages || totalPages === 0}
+                className="px-3 py-1 text-sm rounded-md border border-gray-300 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+              <button
+                onClick={() => setCurrentPage(totalPages)}
+                disabled={currentPage === totalPages || totalPages === 0}
+                className="px-2 py-1 text-sm rounded-md border border-gray-300 bg-white hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Last
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Student Details Modal */}
@@ -2793,7 +2913,7 @@ const AdminDashboard = () => {
                     Student Details: {selectedStudent.personal.name}
                   </h2>
                   <button
-                    onClick={() => setSelectedStudent(null)}
+                    onClick={() => { setSelectedStudent(null); setEditingName(false); }}
                     className="text-gray-500 hover:text-gray-700"
                   >
                     ✕
@@ -2806,7 +2926,43 @@ const AdminDashboard = () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-gray-600">Name</p>
-                      <p className="font-medium">{selectedStudent.personal.name}</p>
+                      {editingName ? (
+                        <div className="flex items-center gap-2 mt-1">
+                          <input
+                            type="text"
+                            value={editNameValue}
+                            onChange={(e) => setEditNameValue(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') setEditingName(false); }}
+                            className="border border-gray-300 rounded px-2 py-1 text-sm w-full focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            autoFocus
+                            disabled={savingName}
+                          />
+                          <button
+                            onClick={handleSaveName}
+                            disabled={savingName}
+                            className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                          >
+                            {savingName ? '...' : 'Save'}
+                          </button>
+                          <button
+                            onClick={() => setEditingName(false)}
+                            disabled={savingName}
+                            className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <p className="font-medium">{selectedStudent.personal.name}</p>
+                          <button
+                            onClick={() => { setEditNameValue(selectedStudent.personal.name); setEditingName(true); }}
+                            className="text-indigo-600 hover:text-indigo-800 text-xs underline"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      )}
                     </div>
                     <div>
                       <p className="text-sm text-gray-600">Email</p>
