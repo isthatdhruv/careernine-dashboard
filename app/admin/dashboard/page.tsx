@@ -398,6 +398,11 @@ const AdminDashboard = () => {
   const [batchSize, setBatchSize] = useState(10);
   const [parallelWorkers, setParallelWorkers] = useState(3);
   const pipelineAbortRef = useRef(false);
+  // Which phases the progress modal should render. Full pipeline uses [0..6];
+  // the "Generate Master Sheet" flow uses [0,1,2,3,5] (skips 4 & 6).
+  const [activePipelinePhases, setActivePipelinePhases] = useState<number[]>([0, 1, 2, 3, 4, 5, 6]);
+  // True once phases 0,1,2,3,5 have completed and the Master Sheet is downloadable.
+  const [masterSheetReady, setMasterSheetReady] = useState(false);
 
   const [generatedReports, setGeneratedReports] = useState<any[]>([]);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -417,6 +422,7 @@ const AdminDashboard = () => {
   const [showOmrModal, setShowOmrModal] = useState(false);
   const [omrData, setOmrData] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const masterUploadInputRef = useRef<HTMLInputElement>(null);
 
   // Loading States
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -1323,6 +1329,8 @@ const AdminDashboard = () => {
     }
     setShowPipelineModal(true);
     setActivePipelineLanguage(language);
+    setActivePipelinePhases([0, 1, 2, 3, 4, 5, 6]);
+    setMasterSheetReady(false);
 
     const exportData = prepareExportData(selectedStudentData);
     setPipelineData(exportData);
@@ -1349,6 +1357,118 @@ const AdminDashboard = () => {
       } else {
         setIsNormalizing(false);
       }
+    }
+  };
+
+  // Triggers a browser download of the standalone Master Sheet for the given language.
+  const downloadMasterSheet = (language: 'english' | 'hindi' = 'english') => {
+    const a = document.createElement('a');
+    a.href = `/api/admin/download-master-sheet?language=${language}`;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
+  const handleGenerateMasterSheet = () => {
+    if (isNormalizingEnglish || isNormalizing) return;
+
+    const selectedStudentData = filteredStudents.filter(student => selectedStudents.has(student.uid));
+    if (selectedStudentData.length === 0) {
+      alert('Please select at least one student to generate the master sheet.');
+      return;
+    }
+
+    // No AI-model-confirm modal here: Phase 4 (AI Summaries) is intentionally skipped.
+    runMasterSheetPipeline();
+  };
+
+  // Opens the file picker for the "Upload & Generate Master Sheet" flow.
+  const handleMasterSheetUploadClick = () => {
+    if (isNormalizingEnglish || isNormalizing) return;
+    masterUploadInputRef.current?.click();
+  };
+
+  // Reads an uploaded xlsx that is ALREADY in the Phase 0 input format (same
+  // column headers as prepareExportData), parses its first sheet into a raw
+  // array-of-arrays [headers, ...rows], and runs phases 0,1,2,3,5 on it. The
+  // file is sent to Phase 0 verbatim — no transformation — since it is assumed
+  // to already match what the normalizer expects.
+  const handleMasterSheetFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Reset immediately so selecting the same file again re-triggers onChange.
+    e.target.value = '';
+    if (!file) return;
+    if (isNormalizingEnglish || isNormalizing) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const wb = XLSX.read(evt.target?.result, { type: 'binary' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rawData = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false }) as any[][];
+        if (!rawData || rawData.length < 2) {
+          alert('The uploaded file has no data rows. Expected a header row plus at least one student row.');
+          return;
+        }
+        runMasterSheetPipeline(rawData);
+      } catch (error: any) {
+        console.error('Error reading uploaded master sheet file:', error);
+        alert(`Error reading file: ${error.message}`);
+      }
+    };
+    reader.onerror = () => alert('Error reading file');
+    reader.readAsBinaryString(file);
+  };
+
+  // Runs the English pipeline for phases 0,1,2,3,5 only (skips 4=AI Summaries and
+  // 6=Report Generation), then downloads the enriched Master Sheet from Phase 5.
+  // Source of the Phase 0 data:
+  //   - uploadedData provided → run on an uploaded xlsx (Upload & Generate flow)
+  //   - otherwise            → run on the currently selected students
+  const runMasterSheetPipeline = async (uploadedData?: any[][]) => {
+    const language: 'english' = 'english';
+    const phases = [0, 1, 2, 3, 5];
+
+    let exportData: any[][];
+    if (uploadedData) {
+      exportData = uploadedData;
+    } else {
+      const selectedStudentData = filteredStudents.filter(student => selectedStudents.has(student.uid));
+      exportData = prepareExportData(selectedStudentData);
+    }
+
+    pipelineAbortRef.current = false;
+    setIsNormalizingEnglish(true);
+    setShowPipelineModal(true);
+    setActivePipelineLanguage(language);
+    setActivePipelinePhases(phases);
+    setMasterSheetReady(false);
+
+    setPipelineData(exportData);
+
+    const initialState: any = {};
+    phases.forEach(p => { initialState[p] = { status: 'pending', logs: '' }; });
+    setPipelineState(initialState);
+    setGeneratedReports([]);
+
+    try {
+      for (const phase of phases) {
+        if (pipelineAbortRef.current) {
+          appendLog(phase, '\n--- Pipeline stopped by user ---\n');
+          return;
+        }
+        const success = await runPhase(phase, language, phase === 0 ? exportData : undefined);
+        if (!success) return;
+      }
+
+      // All phases succeeded — Phase 5 has written the Master_Sheet. Auto-download it.
+      setMasterSheetReady(true);
+      downloadMasterSheet(language);
+    } catch (error: any) {
+      console.error('Error running master sheet pipeline:', error);
+    } finally {
+      setIsNormalizingEnglish(false);
     }
   };
 
@@ -2489,6 +2609,47 @@ const AdminDashboard = () => {
                         {isNormalizingEnglish ? 'Generating English...' : 'Generate Report English'}
                       </button>
                       <button
+                        onClick={handleGenerateMasterSheet}
+                        disabled={isNormalizingEnglish || isNormalizing || selectedStudents.size === 0}
+                        title="Runs English phases 0,1,2,3,5 (skips AI summaries & report generation) and downloads the Master Sheet"
+                        className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
+                          isNormalizingEnglish || isNormalizing || selectedStudents.size === 0
+                            ? 'bg-amber-400 cursor-not-allowed'
+                            : 'bg-amber-600 hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500'
+                        }`}
+                      >
+                        {isNormalizingEnglish ? (
+                          <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></span>
+                        ) : (
+                          <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                        )}
+                        {isNormalizingEnglish ? 'Generating Master Sheet...' : `Generate Master Sheet (${selectedStudents.size})`}
+                      </button>
+                      <button
+                        onClick={handleMasterSheetUploadClick}
+                        disabled={isNormalizingEnglish || isNormalizing}
+                        title="Upload an Excel file in Phase 0 format, run phases 0,1,2,3,5 on it, and download the enriched sheet"
+                        className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white ${
+                          isNormalizingEnglish || isNormalizing
+                            ? 'bg-teal-400 cursor-not-allowed'
+                            : 'bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500'
+                        }`}
+                      >
+                        {isNormalizingEnglish ? (
+                          <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-2"></span>
+                        ) : (
+                          <ArrowDownTrayIcon className="h-4 w-4 mr-2 transform rotate-180" />
+                        )}
+                        Upload & Generate Master Sheet
+                      </button>
+                      <input
+                        type="file"
+                        ref={masterUploadInputRef}
+                        onChange={handleMasterSheetFileUpload}
+                        accept=".xlsx, .xls"
+                        className="hidden"
+                      />
+                      <button
                         onClick={exportToExcel}
                         disabled={isExporting}
                         className={`inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all duration-200 ${isExporting ? 'opacity-75 cursor-not-allowed' : ''}`}
@@ -3201,18 +3362,28 @@ const AdminDashboard = () => {
                   {(isNormalizing || isNormalizingEnglish) && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>}
                   Pipeline Execution ({activePipelineLanguage})
                 </h3>
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-gray-400">AI Model:</label>
-                  <select
-                    value={aiModel}
-                    onChange={(e) => setAiModel(e.target.value as 'openai' | 'ollama')}
-                    className="bg-gray-800 border border-gray-600 text-gray-200 text-sm rounded px-2 py-1"
-                    disabled={isNormalizing || isNormalizingEnglish}
+                {activePipelinePhases.includes(4) && (
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-gray-400">AI Model:</label>
+                    <select
+                      value={aiModel}
+                      onChange={(e) => setAiModel(e.target.value as 'openai' | 'ollama')}
+                      className="bg-gray-800 border border-gray-600 text-gray-200 text-sm rounded px-2 py-1"
+                      disabled={isNormalizing || isNormalizingEnglish}
+                    >
+                      <option value="ollama">Local - {process.env.NEXT_PUBLIC_LOCAL_MODEL_NAME || 'llama3'}</option>
+                      <option value="openai">OpenAI - GPT-4o</option>
+                    </select>
+                  </div>
+                )}
+                {masterSheetReady && !(isNormalizing || isNormalizingEnglish) && (
+                  <button
+                    onClick={() => downloadMasterSheet(activePipelineLanguage)}
+                    className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded font-medium transition-colors flex items-center gap-1"
                   >
-                    <option value="ollama">Local - {process.env.NEXT_PUBLIC_LOCAL_MODEL_NAME || 'llama3'}</option>
-                    <option value="openai">OpenAI - GPT-4o</option>
-                  </select>
-                </div>
+                    <ArrowDownTrayIcon className="w-4 h-4" /> Download Master Sheet
+                  </button>
+                )}
                 {(isNormalizing || isNormalizingEnglish) ? (
                   <button
                     onClick={() => { pipelineAbortRef.current = true; }}
@@ -3230,10 +3401,10 @@ const AdminDashboard = () => {
               <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
                 {/* Phase List & Controls */}
                 <div className="w-full md:w-1/3 border-r border-gray-700 overflow-y-auto p-2 bg-gray-800">
-                  {[0, 1, 2, 3, 4, 5, 6].map(phase => {
+                  {activePipelinePhases.map(phase => {
                     const state = pipelineState[phase] || { status: 'pending', logs: '' };
                     const labels = [
-                      "Data Normalizer", "Core Analysis", "Career Pathway", 
+                      "Data Normalizer", "Core Analysis", "Career Pathway",
                       "Career Matching", "AI Summaries", "Data Enrichment", "Report Generation"
                     ];
                     

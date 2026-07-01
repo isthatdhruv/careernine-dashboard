@@ -151,6 +151,18 @@ ALLOWED_BLANK_PATTERNS = [
     re.compile(r"^Recommendations$"),
 ]
 
+# Fields produced by Phase 4 (AI Summaries). Phase 4 is intentionally skipped
+# by the "Generate Master Sheet" flow, in which case these are blank for EVERY
+# student. When that happens we must not fail validation — see
+# blank_ai_summary_exemptions() below. Partial blanks (some students filled,
+# some not) still indicate a Phase 4 failure and are flagged as usual.
+AI_SUMMARY_FIELDS = ['AI_Summary', 'Learning_Style_Summary', 'Learning Style Summary']
+
+
+def is_blank_value(value) -> bool:
+    """True if a cell is empty, NaN, or the literal string 'nan'."""
+    return pd.isna(value) or str(value).strip().lower() in ('', 'nan')
+
 COMMON_REQUIRED_FIELDS = [
     'Name', 'Name_Caps', 'First Name', 'Class', 'School',
     'AI_Summary', 'Learning_Style_Summary', 'Learning Style Summary',
@@ -222,10 +234,35 @@ def is_allowed_blank(column_name: str) -> bool:
             return True
     return False
 
+def blank_ai_summary_exemptions(df: pd.DataFrame) -> set:
+    """Return the set of AI-summary fields that are blank for EVERY student.
+
+    A globally-blank AI-summary field means Phase 4 (AI Summaries) was skipped,
+    so we exempt it from the required-field check. A field that is blank for
+    only *some* students is NOT exempt: that is a Phase 4 partial failure and
+    should still be flagged."""
+    exemptions = set()
+    for field in AI_SUMMARY_FIELDS:
+        if field not in df.columns:
+            # Column absent entirely (Phase 4 skipped, column never created).
+            exemptions.add(field)
+            continue
+        if df[field].apply(is_blank_value).all():
+            exemptions.add(field)
+    if exemptions:
+        print(f"  {Colors.YELLOW}ℹ️  Phase 4 AI summaries absent for all students; "
+              f"exempting from validation: {sorted(exemptions)}{Colors.END}")
+    return exemptions
+
+
 def validate_report_fields(df: pd.DataFrame):
     """Ensure all fields required by report templates are filled."""
     missing_by_field = {}
     missing_columns = []
+
+    # AI-summary fields that are blank for everyone (Phase 4 skipped) are
+    # exempt; partially-blank AI-summary fields are still validated normally.
+    ai_exempt = blank_ai_summary_exemptions(df)
 
     for idx, row in df.iterrows():
         class_group = get_class_group(row['Class'])
@@ -234,13 +271,15 @@ def validate_report_fields(df: pd.DataFrame):
 
         for field in required_fields:
             if field not in df.columns:
+                if field in ai_exempt:
+                    continue
                 if field not in missing_columns:
                     missing_columns.append(field)
                 continue
 
             value = row.get(field, "")
-            if pd.isna(value) or str(value).strip() == "":
-                if field in optional_fields or is_allowed_blank(field):
+            if is_blank_value(value):
+                if field in optional_fields or is_allowed_blank(field) or field in ai_exempt:
                     continue
                 student_name = row.get('Name', f'Row {idx + 1}')
                 missing_by_field.setdefault(field, set()).add(student_name)
@@ -275,6 +314,12 @@ def validate_report_fields(df: pd.DataFrame):
         print(f"{Colors.RED}   See phase5_data_quality_errors.json for details.{Colors.END}")
         sys.exit(1)
     else:
+        # Validation passed — remove any stale error file from a prior failed run.
+        if os.path.exists('phase5_data_quality_errors.json'):
+            try:
+                os.remove('phase5_data_quality_errors.json')
+            except OSError:
+                pass
         print(f"{Colors.GREEN}  ✅ All mandatory report fields are populated.{Colors.END}")
 
 def required_fields_for_group(class_group: str) -> List[str]:

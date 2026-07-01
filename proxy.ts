@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getTenantFromHost } from './app/lib/tenant-config';
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const host = request.headers.get('host') || '';
   const tenant = await getTenantFromHost(host);
 
